@@ -23,7 +23,7 @@ public sealed class KnownCheatNameEntry
 
 public sealed class RuleSet
 {
-    public string Version { get; set; } = "1.9.1";
+    public string Version { get; set; } = "1.9.2";
     public List<KnownCheatEntry> KnownCheats { get; set; } = new();
     public List<KnownCheatNameEntry> KnownCheatNames { get; set; } = new();
     // Legacy exact hashes remain supported, but they cannot show a product/family name.

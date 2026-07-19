@@ -3,9 +3,9 @@
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
  Title="DoubleG Scanner"
  Width="1060"
- Height="742"
+ Height="758"
  MinWidth="980"
- MinHeight="700"
+ MinHeight="720"
  WindowStartupLocation="CenterScreen"
  WindowStyle="None"
  AllowsTransparency="True"
@@ -258,7 +258,7 @@
        <TabItem>
         <Grid>
          <Grid.RowDefinitions>
-          <RowDefinition Height="286"/>
+          <RowDefinition Height="300"/>
           <RowDefinition Height="12"/>
           <RowDefinition Height="91"/>
           <RowDefinition Height="12"/>
@@ -283,8 +283,8 @@
            <Grid>
             <Grid.RowDefinitions>
              <RowDefinition Height="Auto"/>
-             <RowDefinition Height="10"/>
-             <RowDefinition Height="*"/>
+             <RowDefinition Height="8"/>
+             <RowDefinition Height="Auto"/>
              <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
@@ -337,25 +337,25 @@
                 Foreground="#FFF4EF"
                 FontWeight="SemiBold"
                 FontSize="10.5"/>
-               <TextBlock Text="MFT, USN and free-cluster signatures"
+               <TextBlock Text="MFT, USN and deleted signatures"
                 Foreground="#A39591"
                 FontSize="8.5"/>
               </StackPanel>
              </RadioButton>
             </StackPanel>
 
-            <StackPanel Grid.Row="3">
+            <StackPanel Grid.Row="3" Margin="0,4,0,0">
              <CheckBox x:Name="ConsentCheckBox"
               Style="{StaticResource ConsentCheck}"
               Checked="ConsentCheckBox_Changed"
               Unchecked="ConsentCheckBox_Changed">
               <TextBlock Text="I consent to a local read-only scan."
                Foreground="#C8BBB7"
-               FontSize="8.6"
+               FontSize="8.3"
                TextWrapping="Wrap"/>
              </CheckBox>
 
-             <Grid Margin="0,10,0,0">
+             <Grid Margin="0,8,0,0">
               <Grid.ColumnDefinitions>
                <ColumnDefinition Width="*"/>
                <ColumnDefinition Width="7"/>
@@ -365,6 +365,7 @@
               <Button x:Name="CancelButton"
                Grid.Column="0"
                Style="{StaticResource GhostButton}"
+               Height="36"
                Content="CANCEL"
                IsEnabled="False"
                Click="CancelButton_Click"/>
@@ -372,6 +373,7 @@
               <Button x:Name="StartScanButton"
                Grid.Column="2"
                Style="{StaticResource PrimaryButton}"
+               Height="36"
                Content="START SCAN"
                IsEnabled="False"
                Click="StartScanButton_Click"/>

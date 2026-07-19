@@ -1,4 +1,4 @@
-# DoubleG Scanner v1.9.1
+# DoubleG Scanner v1.9.2
 
 ## New Forensic Scan
 
@@ -31,3 +31,9 @@ user, DoubleG Scanner offers to restart through Windows UAC.
 - Fixed raw-signature ReadOnlySpan iterator compilation.
 - Fixed the collector namespace used by the administrator prompt.
 - Updated GitHub Actions to Node.js 24-compatible majors.
+
+
+## v1.9.2 layout fix
+
+- Fixed Forensic Scan overlapping the consent/actions area.
+- Compact scan-mode cards now fit cleanly at supported display scales.

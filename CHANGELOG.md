@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.9.2
+- Fixed the Forensic Scan card overlapping the consent checkbox.
+- Changed the Scan Profile content rows to Auto sizing.
+- Reduced scan-mode padding and vertical spacing.
+- Added guaranteed spacing above consent and action buttons.
+- Increased the top dashboard row slightly for display-scaling compatibility.
+- Preserved all v1.9.1 scan, NTFS forensic, detection and report behavior.
+
 ## 1.9.1
 - Fixed all ReadOnlySpan/yield compiler errors in the raw signature scanner.
 - Fixed the missing SystemProfileCollector namespace in MainWindow.

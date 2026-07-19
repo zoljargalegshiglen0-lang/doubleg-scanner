@@ -271,7 +271,7 @@
   <Style x:Key="ScanModeRadio" TargetType="RadioButton">
    <Setter Property="Foreground" Value="#FFF7F3"/>
    <Setter Property="Cursor" Value="Hand"/>
-   <Setter Property="Margin" Value="0,0,0,8"/>
+   <Setter Property="Margin" Value="0,0,0,5"/>
    <Setter Property="Template">
     <Setter.Value>
      <ControlTemplate TargetType="RadioButton">
@@ -279,18 +279,18 @@
        Background="#171213"
        BorderBrush="#3A292C"
        BorderThickness="1"
-       CornerRadius="12"
-       Padding="11,10">
+       CornerRadius="11"
+       Padding="10,7">
        <Grid>
         <Grid.ColumnDefinitions>
-         <ColumnDefinition Width="20"/>
+         <ColumnDefinition Width="19"/>
          <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
-        <Grid Width="14" Height="14" VerticalAlignment="Top" Margin="0,2,0,0">
+        <Grid Width="13" Height="13" VerticalAlignment="Top" Margin="0,2,0,0">
          <Ellipse Stroke="#92827E" StrokeThickness="1.2"/>
          <Ellipse x:Name="SelectionDot"
-          Width="7"
-          Height="7"
+          Width="6.5"
+          Height="6.5"
           Fill="#F04B3D"
           Visibility="Collapsed"/>
         </Grid>
