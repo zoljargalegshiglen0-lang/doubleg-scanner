@@ -1,4 +1,4 @@
-# DoubleG Scanner v1.9.3
+# DoubleG Scanner v1.9.4
 
 ## New Forensic Scan
 
@@ -44,3 +44,8 @@ user, DoubleG Scanner offers to restart through Windows UAC.
 - Defender target scans have visible heartbeat updates.
 - Every target has a strict safety timeout.
 - Timed-out targets are stopped and reported as Partial instead of freezing the application.
+
+
+## v1.9.4 UI hotfix
+
+- Removed the READ ONLY badge from the Live Analysis header.

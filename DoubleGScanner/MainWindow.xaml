@@ -408,17 +408,6 @@
                Margin="0,3,0,0"/>
              </StackPanel>
 
-             <Border DockPanel.Dock="Right"
-              Background="#211719"
-              BorderBrush="#4A3035"
-              BorderThickness="1"
-              CornerRadius="9"
-              Padding="8,4">
-              <TextBlock Text="READ ONLY"
-               Foreground="#D2C3BF"
-               FontSize="8"
-               FontWeight="Bold"/>
-             </Border>
             </DockPanel>
 
             <Grid Grid.Row="1" Margin="0,12,0,10">

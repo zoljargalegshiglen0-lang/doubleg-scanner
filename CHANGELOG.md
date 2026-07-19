@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.9.4
+- Removed the READ ONLY badge from the Live Analysis header.
+- Preserved all scanner privacy, read-only collection, detection, NTFS forensic, Defender timeout, PDF and JSON behavior.
+
 ## 1.9.3
 - Fixed the Microsoft Defender stage permanently freezing at 85–88%.
 - Removed the unbounded redirected-output wait after a Defender timeout.
