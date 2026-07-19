@@ -1,5 +1,5 @@
 #define MyAppName "DoubleG Scanner"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "1.1.1"
 #define MyAppPublisher "DoubleG"
 #define MyAppExeName "DoubleGScanner.exe"
 [Setup]
@@ -12,7 +12,7 @@ DefaultGroupName=DoubleG Scanner
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 OutputDir=..\Release\Installer
-OutputBaseFilename=DoubleGScannerSetup_v{#MyAppVersion}
+OutputBaseFilename=DoubleGScannerSetup
 SetupIconFile=..\DoubleGScanner\Assets\DoubleGScanner.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 Compression=lzma2

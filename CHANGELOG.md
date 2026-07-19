@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.1.1
+- Fixed missing System.IO imports in GitHub Actions builds.
+- Replaced unsupported MigraDoc Color.FromHex with Color.Parse.
+- Fixed Inno Setup discovery in PowerShell.
+- Build scripts now fail correctly on dotnet/Inno errors.
+
+## 1.1.0
+- Added named cheat-signature entries.
+- PDF now prints detected cheat name, family, exact detection method, artifact path and SHA-256.
+- Kept legacy unnamed hash compatibility.
+- Added automatic public GitHub Release publishing on version tags.
+- Added installer and portable SHA-256 release files.
+- Added Mongolian public release guide.
+
 ## 1.0.0
 
 - Modern WPF dark UI

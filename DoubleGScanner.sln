@@ -1,21 +1,18 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 18
-VisualStudioVersion = 18.8.12009.203 stable
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DoubleGScanner", "DoubleGScanner\DoubleGScanner.csproj", "{F8E08326-6F03-4CF2-A4E7-86262C8EBEA3}"
 EndProject
 Global
-	GlobalSection(SolutionConfigurationPlatforms) = preSolution
-		Debug|x64 = Debug|x64
-		Release|x64 = Release|x64
-	EndGlobalSection
-	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{F8E08326-6F03-4CF2-A4E7-86262C8EBEA3}.Debug|x64.ActiveCfg = Debug|x64
-		{F8E08326-6F03-4CF2-A4E7-86262C8EBEA3}.Debug|x64.Build.0 = Debug|x64
-		{F8E08326-6F03-4CF2-A4E7-86262C8EBEA3}.Release|x64.ActiveCfg = Release|x64
-		{F8E08326-6F03-4CF2-A4E7-86262C8EBEA3}.Release|x64.Build.0 = Release|x64
-	EndGlobalSection
-	GlobalSection(SolutionProperties) = preSolution
-		HideSolutionNode = FALSE
-	EndGlobalSection
+ GlobalSection(SolutionConfigurationPlatforms) = preSolution
+  Debug|x64 = Debug|x64
+  Release|x64 = Release|x64
+ EndGlobalSection
+ GlobalSection(ProjectConfigurationPlatforms) = postSolution
+  {F8E08326-6F03-4CF2-A4E7-86262C8EBEA3}.Debug|x64.ActiveCfg = Debug|x64
+  {F8E08326-6F03-4CF2-A4E7-86262C8EBEA3}.Debug|x64.Build.0 = Debug|x64
+  {F8E08326-6F03-4CF2-A4E7-86262C8EBEA3}.Release|x64.ActiveCfg = Release|x64
+  {F8E08326-6F03-4CF2-A4E7-86262C8EBEA3}.Release|x64.Build.0 = Release|x64
+ EndGlobalSection
 EndGlobal

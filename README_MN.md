@@ -115,3 +115,8 @@ Source read-only байсан ч unsigned шинэ installer дээр Windows `U
 - CS2 ажиллаагүй бол live module inspection partial гарна.
 - Historical per-process byte usage бүх Windows системд найдвартай байдаггүй; одоогийн build live TCP ба cumulative interface counters гаргана.
 - Production release хийхээс өмнө Windows 10/11 test machine, clean VM, standard user/admin нөхцөлд QA хийнэ.
+
+
+## v1.1.0 Named cheat detection
+
+Exact SHA-256 entries can now include cheat name and family. PDF findings show the detected name, family, method, path, hash, timestamp, and evidence source. See `PUBLIC_RELEASE_STEP_BY_STEP_MN.md`.

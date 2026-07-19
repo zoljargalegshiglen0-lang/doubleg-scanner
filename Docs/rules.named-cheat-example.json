@@ -1,0 +1,11 @@
+{
+  "instructions": "Do not place this example file in the app Data folder. Copy only verified entries into Data/rules.json.",
+  "knownCheatsExample": [
+    {
+      "name": "Example Cheat Name",
+      "family": "Example Family",
+      "hashSha256": "REPLACE_WITH_64_CHARACTER_VERIFIED_SHA256",
+      "sourceNote": "Verified from an authorized test sample"
+    }
+  ]
+}

@@ -122,8 +122,17 @@ public static class RuleMatcher
 {
     public static bool ContainsHigh(string? value, RuleSet r) => ContainsAny(value,r.HighRiskKeywords);
     public static bool ContainsMedium(string? value, RuleSet r) => ContainsAny(value,r.MediumRiskKeywords);
+    public static KnownCheatEntry? FindKnownCheat(string? hash, RuleSet r)
+    {
+        if (string.IsNullOrWhiteSpace(hash)) return null;
+        return r.KnownCheats.FirstOrDefault(x =>
+            !string.IsNullOrWhiteSpace(x.HashSha256) &&
+            x.HashSha256.Equals(hash, StringComparison.OrdinalIgnoreCase));
+    }
+
     public static bool IsKnownHash(string? hash, RuleSet r) =>
-        !string.IsNullOrWhiteSpace(hash) && r.KnownHashes.Contains(hash,StringComparer.OrdinalIgnoreCase);
+        FindKnownCheat(hash, r) is not null ||
+        (!string.IsNullOrWhiteSpace(hash) && r.KnownHashes.Contains(hash,StringComparer.OrdinalIgnoreCase));
     public static bool IsKnownDomain(string? url, RuleSet r)
     {
         if (!Uri.TryCreate(url,UriKind.Absolute,out Uri? u)) return false;

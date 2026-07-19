@@ -36,6 +36,7 @@ jobs:
         shell: powershell
         run: |
           $installer = Get-ChildItem .\Release\Installer\*.exe | Select-Object -First 1
+          if (-not $installer) { throw "Installer EXE was not produced." }
           $installerHash = (Get-FileHash $installer.FullName -Algorithm SHA256).Hash
           "$installerHash  $($installer.Name)" | Out-File `
             ".\Release\Installer\$($installer.Name).sha256.txt" -Encoding ascii

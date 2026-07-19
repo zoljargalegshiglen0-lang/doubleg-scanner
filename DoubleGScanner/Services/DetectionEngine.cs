@@ -9,10 +9,39 @@ public static class DetectionEngine
         var findings=new List<ScanFinding>();
         foreach(EvidenceRecord item in evidence)
         {
+            KnownCheatEntry? knownCheat = RuleMatcher.FindKnownCheat(item.HashSha256, rules);
+            if(knownCheat is not null)
+            {
+                string displayName = string.IsNullOrWhiteSpace(knownCheat.Name) ? "Named cheat signature" : knownCheat.Name;
+                findings.Add(new ScanFinding
+                {
+                    RuleId = "DGS-HASH-001",
+                    Severity = FindingSeverity.Critical,
+                    Score = 100,
+                    Title = $"Detected cheat: {displayName}",
+                    Summary = "The artifact SHA-256 exactly matched a named entry in the local DoubleG detection database.",
+                    EvidenceSource = item.Source,
+                    Path = item.Path ?? item.Url,
+                    HashSha256 = item.HashSha256,
+                    Timestamp = item.Timestamp,
+                    DetectedCheatName = displayName,
+                    CheatFamily = string.IsNullOrWhiteSpace(knownCheat.Family) ? null : knownCheat.Family,
+                    DetectionMethod = "Exact SHA-256 signature",
+                    Reasons = new[]
+                    {
+                        "Exact SHA-256 match",
+                        string.IsNullOrWhiteSpace(knownCheat.SourceNote)
+                            ? "Matched a locally maintained named detection entry"
+                            : knownCheat.SourceNote
+                    }
+                });
+                continue;
+            }
             if(RuleMatcher.IsKnownHash(item.HashSha256,rules))
             {
-                findings.Add(F("DGS-HASH-001",FindingSeverity.Critical,100,"Known cheat hash matched",
-                    "The SHA-256 hash exactly matched the local detection-rule dataset.",item,"Exact hash match"));continue;
+                findings.Add(F("DGS-HASH-001-LEGACY",FindingSeverity.Critical,100,"Known cheat hash matched",
+                    "The SHA-256 hash exactly matched a legacy unnamed entry in the local detection-rule dataset.",item,"Exact legacy hash match"));
+                continue;
             }
             string combined=string.Join(" ",item.Name,item.Path,item.Url,item.Detail);
             bool high=RuleMatcher.ContainsHigh(combined,rules),medium=RuleMatcher.ContainsMedium(combined,rules);

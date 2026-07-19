@@ -6,9 +6,19 @@ public enum FindingSeverity { Information, Warning, High, Critical }
 public enum EvidenceKind { System, Process, Module, Browser, Execution, DeletedFile, Network, FileArtifact }
 public enum CoverageStatus { Completed, Partial, Unavailable, Skipped, Failed }
 
+public sealed class KnownCheatEntry
+{
+    public string Name { get; set; } = "";
+    public string Family { get; set; } = "";
+    public string HashSha256 { get; set; } = "";
+    public string SourceNote { get; set; } = "";
+}
+
 public sealed class RuleSet
 {
-    public string Version { get; set; } = "1.0.0";
+    public string Version { get; set; } = "1.1.0";
+    public List<KnownCheatEntry> KnownCheats { get; set; } = new();
+    // Legacy exact hashes remain supported, but they cannot show a product/family name.
     public List<string> KnownHashes { get; set; } = new();
     public List<string> KnownDomains { get; set; } = new();
     public List<string> HighRiskKeywords { get; set; } = new();
@@ -43,6 +53,9 @@ public sealed class ScanFinding
     public string? Path { get; init; }
     public string? HashSha256 { get; init; }
     public DateTimeOffset? Timestamp { get; init; }
+    public string? DetectedCheatName { get; init; }
+    public string? CheatFamily { get; init; }
+    public string? DetectionMethod { get; init; }
     public IReadOnlyList<string> Reasons { get; init; } = Array.Empty<string>();
 }
 
