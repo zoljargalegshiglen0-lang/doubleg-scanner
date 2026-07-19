@@ -93,50 +93,302 @@ public sealed class ExecutionHistoryCollector : IScanCollector
 
 public sealed class RecycleBinCollector : IScanCollector
 {
-    public string Name=>"Deleted-file traces";
-    public bool Supports(ScanMode mode)=>mode!=ScanMode.Quick;
-    public Task<CollectorOutput> CollectAsync(ScanContext c,IProgress<ScanProgressUpdate>? p,CancellationToken t)
+    public string Name => "Deleted-file traces";
+    public bool Supports(ScanMode mode) => true;
+
+    public Task<CollectorOutput> CollectAsync(
+        ScanContext context,
+        IProgress<ScanProgressUpdate>? progress,
+        CancellationToken token)
     {
-        DateTime start=DateTime.UtcNow;var list=new List<EvidenceRecord>();int checkedCount=0;bool partial=false;
-        p?.Report(new(){Percent=61,Module=Name,Message="Reading Recycle Bin metadata without restoring files..."});
-        foreach(DriveInfo drive in DriveInfo.GetDrives().Where(x=>x.IsReady&&x.DriveType==DriveType.Fixed))
+        DateTime started = DateTime.UtcNow;
+        var evidence = new List<EvidenceRecord>();
+        int checkedCount = 0;
+        bool partial = false;
+
+        int maxRecords = context.Mode switch
         {
-            string rb=Path.Combine(drive.RootDirectory.FullName,"$Recycle.Bin");if(!Directory.Exists(rb))continue;
+            ScanMode.Quick => 3_000,
+            ScanMode.Full => 10_000,
+            _ => 30_000
+        };
+
+        int recentDays = context.Mode switch
+        {
+            ScanMode.Quick => 45,
+            ScanMode.Full => 120,
+            _ => 365
+        };
+
+        DateTimeOffset cutoff =
+            DateTimeOffset.Now.AddDays(-recentDays);
+
+        progress?.Report(new ScanProgressUpdate
+        {
+            Percent = context.Mode == ScanMode.Quick ? 53 : 61,
+            Module = Name,
+            Message = context.Mode == ScanMode.Quick
+                ? "Checking recent Recycle Bin executable/archive metadata..."
+                : "Reading Recycle Bin metadata without restoring files..."
+        });
+
+        foreach (DriveInfo drive in DriveInfo
+                     .GetDrives()
+                     .Where(item =>
+                         item.IsReady &&
+                         item.DriveType == DriveType.Fixed))
+        {
+            string recycleBin =
+                Path.Combine(
+                    drive.RootDirectory.FullName,
+                    "$Recycle.Bin");
+
+            if (!Directory.Exists(recycleBin))
+                continue;
+
             try
             {
-                foreach(string file in Files(rb,"$I*"))
+                foreach (string metadataFile in
+                         Files(recycleBin, "$I*"))
                 {
-                    t.ThrowIfCancellationRequested();checkedCount++;
-                    if(Parse(file,out Deleted? d)&&d is not null)list.Add(new(){Kind=EvidenceKind.DeletedFile,Source=Name,
-                        Name=Path.GetFileName(d.Path),Path=d.Path,Timestamp=d.Time,Detail="Recycle Bin metadata; content was not restored or opened.",
-                        Metadata=new(StringComparer.OrdinalIgnoreCase){["OriginalSize"]=d.Size.ToString(),["MetadataFile"]=file,["CurrentStatus"]="Deleted trace"}});
+                    token.ThrowIfCancellationRequested();
+
+                    if (checkedCount >= maxRecords)
+                    {
+                        partial = true;
+                        break;
+                    }
+
+                    checkedCount++;
+
+                    if (!Parse(
+                            metadataFile,
+                            out Deleted? deleted) ||
+                        deleted is null)
+                        continue;
+
+                    bool executableOrArchive =
+                        RuleMatcher.IsExecutableOrArchive(
+                            deleted.Path);
+
+                    bool named =
+                        RuleMatcher.FindKnownCheatName(
+                            deleted.Path,
+                            context.Rules) is not null;
+
+                    bool high =
+                        RuleMatcher.ContainsHigh(
+                            deleted.Path,
+                            context.Rules);
+
+                    bool recent =
+                        deleted.Time is not null &&
+                        deleted.Time.Value >= cutoff;
+
+                    bool relevant =
+                        context.Mode == ScanMode.Quick
+                            ? named ||
+                              high ||
+                              (recent &&
+                               executableOrArchive)
+                            : true;
+
+                    if (!relevant)
+                        continue;
+
+                    evidence.Add(new EvidenceRecord
+                    {
+                        Kind = EvidenceKind.DeletedFile,
+                        Source = Name,
+                        Name =
+                            Path.GetFileName(deleted.Path),
+                        Path = deleted.Path,
+                        Timestamp = deleted.Time,
+                        Detail =
+                            "Recycle Bin metadata; content was not restored or opened.",
+                        Metadata =
+                            new Dictionary<string, string>(
+                                StringComparer.OrdinalIgnoreCase)
+                            {
+                                ["OriginalSize"] =
+                                    deleted.Size.ToString(),
+                                ["MetadataFile"] =
+                                    metadataFile,
+                                ["CurrentStatus"] =
+                                    "Deleted trace",
+                                ["RecordType"] =
+                                    "RecycleBinDeletedTrace",
+                                ["RecentTrace"] =
+                                    recent.ToString(),
+                                ["ExecutableOrArchive"] =
+                                    executableOrArchive.ToString()
+                            }
+                    });
                 }
             }
-            catch{partial=true;}
+            catch
+            {
+                partial = true;
+            }
+
+            if (checkedCount >= maxRecords)
+                break;
         }
-        return Task.FromResult(new CollectorOutput{Module=Name,Status=partial?CoverageStatus.Partial:CoverageStatus.Completed,
-            Summary=$"Checked {checkedCount:N0} Recycle Bin metadata records and parsed {list.Count:N0} deleted-file traces.",
-            Evidence=list,ItemsChecked=checkedCount,Duration=DateTime.UtcNow-start});
+
+        return Task.FromResult(
+            new CollectorOutput
+            {
+                Module = Name,
+                Status = partial
+                    ? CoverageStatus.Partial
+                    : CoverageStatus.Completed,
+                Summary =
+                    $"Checked {checkedCount:N0} Recycle Bin metadata records and retained {evidence.Count:N0} relevant deleted-file traces.",
+                Evidence = evidence,
+                ItemsChecked = checkedCount,
+                Duration = DateTime.UtcNow - started
+            });
     }
-    private static bool Parse(string path,out Deleted? d)
+
+    private static bool Parse(
+        string path,
+        out Deleted? deleted)
     {
-        d=null;try
+        deleted = null;
+
+        try
         {
-            byte[] data=File.ReadAllBytes(path);if(data.Length<24)return false;long ver=BitConverter.ToInt64(data,0),size=BitConverter.ToInt64(data,8),ft=BitConverter.ToInt64(data,16);
-            DateTimeOffset? time=null;try{if(ft>0)time=DateTimeOffset.FromFileTime(ft);}catch{}
-            string original;
-            if(ver==2&&data.Length>=28){int chars=BitConverter.ToInt32(data,24);int bytes=Math.Min(Math.Max(chars*2,0),data.Length-28);original=Encoding.Unicode.GetString(data,28,bytes).TrimEnd('\0');}
-            else original=Encoding.Unicode.GetString(data,24,data.Length-24).TrimEnd('\0');
-            if(string.IsNullOrWhiteSpace(original))return false;d=new(original,size,time);return true;
-        }catch{return false;}
+            byte[] data = File.ReadAllBytes(path);
+            if (data.Length < 24)
+                return false;
+
+            long version = BitConverter.ToInt64(
+                data,
+                0);
+            long size = BitConverter.ToInt64(
+                data,
+                8);
+            long fileTime = BitConverter.ToInt64(
+                data,
+                16);
+
+            DateTimeOffset? deletedTime = null;
+            try
+            {
+                if (fileTime > 0)
+                    deletedTime =
+                        DateTimeOffset.FromFileTime(
+                            fileTime);
+            }
+            catch
+            {
+            }
+
+            string originalPath;
+            if (version == 2 &&
+                data.Length >= 28)
+            {
+                int characters =
+                    BitConverter.ToInt32(
+                        data,
+                        24);
+
+                int bytes = Math.Min(
+                    Math.Max(
+                        characters * 2,
+                        0),
+                    data.Length - 28);
+
+                originalPath =
+                    Encoding.Unicode
+                        .GetString(
+                            data,
+                            28,
+                            bytes)
+                        .TrimEnd('\0');
+            }
+            else
+            {
+                originalPath =
+                    Encoding.Unicode
+                        .GetString(
+                            data,
+                            24,
+                            data.Length - 24)
+                        .TrimEnd('\0');
+            }
+
+            if (string.IsNullOrWhiteSpace(
+                    originalPath))
+                return false;
+
+            deleted = new Deleted(
+                originalPath,
+                size,
+                deletedTime);
+
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
     }
-    private static IEnumerable<string> Files(string root,string pattern)
+
+    private static IEnumerable<string> Files(
+        string root,
+        string pattern)
     {
-        var stack=new Stack<string>();stack.Push(root);
-        while(stack.Count>0){string cur=stack.Pop();string[] fs;try{fs=Directory.GetFiles(cur,pattern);}catch{fs=Array.Empty<string>();}
-            foreach(string f in fs)yield return f;string[] ds;try{ds=Directory.GetDirectories(cur);}catch{ds=Array.Empty<string>();}foreach(string dir in ds)stack.Push(dir);}
+        var directories =
+            new Stack<string>();
+
+        directories.Push(root);
+
+        while (directories.Count > 0)
+        {
+            string current =
+                directories.Pop();
+
+            string[] files;
+            try
+            {
+                files =
+                    Directory.GetFiles(
+                        current,
+                        pattern);
+            }
+            catch
+            {
+                files =
+                    Array.Empty<string>();
+            }
+
+            foreach (string file in files)
+                yield return file;
+
+            string[] childDirectories;
+            try
+            {
+                childDirectories =
+                    Directory.GetDirectories(
+                        current);
+            }
+            catch
+            {
+                childDirectories =
+                    Array.Empty<string>();
+            }
+
+            foreach (string directory in
+                     childDirectories)
+                directories.Push(directory);
+        }
     }
-    private sealed record Deleted(string Path,long Size,DateTimeOffset? Time);
+
+    private sealed record Deleted(
+        string Path,
+        long Size,
+        DateTimeOffset? Time);
 }
 
 public sealed class FileArtifactCollector : IScanCollector

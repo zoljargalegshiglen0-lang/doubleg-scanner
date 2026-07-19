@@ -517,7 +517,9 @@ public sealed class NtfsMftCollector : IScanCollector
 public sealed class UsnJournalCollector : IScanCollector
 {
     public string Name => "USN change journal";
-    public bool Supports(ScanMode mode) => mode == ScanMode.Forensic;
+
+    public bool Supports(ScanMode mode) =>
+        mode is ScanMode.Quick or ScanMode.Forensic;
 
     public Task<CollectorOutput> CollectAsync(
         ScanContext context,
@@ -532,39 +534,72 @@ public sealed class UsnJournalCollector : IScanCollector
 
         if (!SystemProfileCollector.IsAdministrator())
         {
-            return Task.FromResult(new CollectorOutput
-            {
-                Module = Name,
-                Status = CoverageStatus.Unavailable,
-                Summary = "Administrator access is required for read-only USN Journal inspection.",
-                Evidence = evidence,
-                ItemsChecked = 0,
-                Duration = DateTime.UtcNow - started
-            });
+            return Task.FromResult(
+                new CollectorOutput
+                {
+                    Module = Name,
+                    Status = CoverageStatus.Unavailable,
+                    Summary =
+                        context.Mode == ScanMode.Quick
+                            ? "Recent USN deletion checking is optional in Quick Scan and requires administrator access. Browser and Recycle Bin traces were still checked."
+                            : "Administrator access is required for read-only USN Journal inspection.",
+                    Evidence = evidence,
+                    ItemsChecked = 0,
+                    Duration = DateTime.UtcNow - started
+                });
         }
 
-        const int maxRecords = 300_000;
-        TimeSpan timeLimit = TimeSpan.FromSeconds(35);
+        int maxRecords =
+            context.Mode == ScanMode.Quick
+                ? 80_000
+                : 300_000;
 
-        foreach (DriveInfo drive in NtfsForensicNative.NtfsFixedDrives())
+        int maxEvidence =
+            context.Mode == ScanMode.Quick
+                ? 500
+                : 5_000;
+
+        TimeSpan timeLimit =
+            context.Mode == ScanMode.Quick
+                ? TimeSpan.FromSeconds(12)
+                : TimeSpan.FromSeconds(35);
+
+        long recentWindow =
+            context.Mode == ScanMode.Quick
+                ? 64L * 1024 * 1024
+                : 512L * 1024 * 1024;
+
+        DateTimeOffset cutoff =
+            DateTimeOffset.Now.AddDays(
+                context.Mode == ScanMode.Quick
+                    ? -45
+                    : -365);
+
+        foreach (DriveInfo drive in
+                 NtfsForensicNative.NtfsFixedDrives())
         {
             token.ThrowIfCancellationRequested();
-            using SafeFileHandle volume = NtfsForensicNative.OpenVolume(drive);
+
+            using SafeFileHandle volume =
+                NtfsForensicNative.OpenVolume(drive);
+
             if (volume.IsInvalid)
             {
                 partial = true;
                 continue;
             }
 
-            bool queried = NtfsForensicNative.DeviceIoControlQueryUsn(
-                volume,
-                NtfsForensicNative.FsctlQueryUsnJournal,
-                IntPtr.Zero,
-                0,
-                out NtfsForensicNative.UsnJournalDataV0 journal,
-                Marshal.SizeOf<NtfsForensicNative.UsnJournalDataV0>(),
-                out _,
-                IntPtr.Zero);
+            bool queried =
+                NtfsForensicNative.DeviceIoControlQueryUsn(
+                    volume,
+                    NtfsForensicNative.FsctlQueryUsnJournal,
+                    IntPtr.Zero,
+                    0,
+                    out NtfsForensicNative.UsnJournalDataV0 journal,
+                    Marshal.SizeOf<
+                        NtfsForensicNative.UsnJournalDataV0>(),
+                    out _,
+                    IntPtr.Zero);
 
             if (!queried)
             {
@@ -573,42 +608,58 @@ public sealed class UsnJournalCollector : IScanCollector
             }
 
             available = true;
-            long recentWindow = 512L * 1024 * 1024;
-            long startingUsn = Math.Max(journal.FirstUsn, journal.NextUsn - recentWindow);
-            bool tailOnly = startingUsn > journal.FirstUsn;
 
-            var input = new NtfsForensicNative.ReadUsnJournalDataV0
-            {
-                StartUsn = startingUsn,
-                ReasonMask = uint.MaxValue,
-                ReturnOnlyOnClose = 0,
-                Timeout = 0,
-                BytesToWaitFor = 0,
-                UsnJournalId = journal.UsnJournalId
-            };
+            long startingUsn =
+                Math.Max(
+                    journal.FirstUsn,
+                    journal.NextUsn - recentWindow);
 
-            byte[] buffer = new byte[1024 * 1024];
+            bool tailOnly =
+                startingUsn > journal.FirstUsn;
 
-            while (input.StartUsn < journal.NextUsn &&
-                   checkedRecords < maxRecords &&
-                   DateTime.UtcNow - started < timeLimit)
+            var input =
+                new NtfsForensicNative.ReadUsnJournalDataV0
+                {
+                    StartUsn = startingUsn,
+                    ReasonMask = uint.MaxValue,
+                    ReturnOnlyOnClose = 0,
+                    Timeout = 0,
+                    BytesToWaitFor = 0,
+                    UsnJournalId =
+                        journal.UsnJournalId
+                };
+
+            byte[] buffer =
+                new byte[1024 * 1024];
+
+            while (
+                input.StartUsn < journal.NextUsn &&
+                checkedRecords < maxRecords &&
+                evidence.Count < maxEvidence &&
+                DateTime.UtcNow - started < timeLimit)
             {
                 token.ThrowIfCancellationRequested();
 
-                bool ok = NtfsForensicNative.DeviceIoControlReadUsn(
-                    volume,
-                    NtfsForensicNative.FsctlReadUsnJournal,
-                    ref input,
-                    Marshal.SizeOf<NtfsForensicNative.ReadUsnJournalDataV0>(),
-                    buffer,
-                    buffer.Length,
-                    out int bytesReturned,
-                    IntPtr.Zero);
+                bool ok =
+                    NtfsForensicNative.DeviceIoControlReadUsn(
+                        volume,
+                        NtfsForensicNative.FsctlReadUsnJournal,
+                        ref input,
+                        Marshal.SizeOf<
+                            NtfsForensicNative.ReadUsnJournalDataV0>(),
+                        buffer,
+                        buffer.Length,
+                        out int bytesReturned,
+                        IntPtr.Zero);
 
-                int error = Marshal.GetLastWin32Error();
+                int error =
+                    Marshal.GetLastWin32Error();
+
                 if (!ok &&
-                    error != NtfsForensicNative.ErrorMoreData &&
-                    error != NtfsForensicNative.ErrorHandleEof)
+                    error !=
+                    NtfsForensicNative.ErrorMoreData &&
+                    error !=
+                    NtfsForensicNative.ErrorHandleEof)
                 {
                     partial = true;
                     break;
@@ -617,118 +668,231 @@ public sealed class UsnJournalCollector : IScanCollector
                 if (bytesReturned < sizeof(long))
                     break;
 
-                long nextUsn = BitConverter.ToInt64(buffer, 0);
-                int offset = sizeof(long);
+                long nextUsn =
+                    BitConverter.ToInt64(
+                        buffer,
+                        0);
 
-                while (offset + 60 <= bytesReturned &&
-                       checkedRecords < maxRecords)
+                int offset =
+                    sizeof(long);
+
+                while (
+                    offset + 60 <= bytesReturned &&
+                    checkedRecords < maxRecords &&
+                    evidence.Count < maxEvidence)
                 {
                     token.ThrowIfCancellationRequested();
 
-                    uint recordLength = BitConverter.ToUInt32(buffer, offset);
-                    if (recordLength < 60 || offset + recordLength > bytesReturned)
+                    uint recordLength =
+                        BitConverter.ToUInt32(
+                            buffer,
+                            offset);
+
+                    if (recordLength < 60 ||
+                        offset + recordLength >
+                        bytesReturned)
                         break;
 
-                    ushort major = BitConverter.ToUInt16(buffer, offset + 4);
+                    ushort major =
+                        BitConverter.ToUInt16(
+                            buffer,
+                            offset + 4);
+
                     if (major == 2)
                     {
-                        ulong fileReference = BitConverter.ToUInt64(buffer, offset + 8);
-                        ulong parentReference = BitConverter.ToUInt64(buffer, offset + 16);
-                        long usn = BitConverter.ToInt64(buffer, offset + 24);
-                        long fileTime = BitConverter.ToInt64(buffer, offset + 32);
-                        uint reason = BitConverter.ToUInt32(buffer, offset + 40);
-                        uint attributes = BitConverter.ToUInt32(buffer, offset + 52);
-                        ushort nameLength = BitConverter.ToUInt16(buffer, offset + 56);
-                        ushort nameOffset = BitConverter.ToUInt16(buffer, offset + 58);
+                        ulong fileReference =
+                            BitConverter.ToUInt64(
+                                buffer,
+                                offset + 8);
+
+                        ulong parentReference =
+                            BitConverter.ToUInt64(
+                                buffer,
+                                offset + 16);
+
+                        long usn =
+                            BitConverter.ToInt64(
+                                buffer,
+                                offset + 24);
+
+                        long fileTime =
+                            BitConverter.ToInt64(
+                                buffer,
+                                offset + 32);
+
+                        uint reason =
+                            BitConverter.ToUInt32(
+                                buffer,
+                                offset + 40);
+
+                        uint attributes =
+                            BitConverter.ToUInt32(
+                                buffer,
+                                offset + 52);
+
+                        ushort nameLength =
+                            BitConverter.ToUInt16(
+                                buffer,
+                                offset + 56);
+
+                        ushort nameOffset =
+                            BitConverter.ToUInt16(
+                                buffer,
+                                offset + 58);
 
                         if (nameLength > 0 &&
                             nameOffset >= 60 &&
-                            nameOffset + nameLength <= recordLength)
+                            nameOffset + nameLength <=
+                            recordLength)
                         {
-                            string name = Encoding.Unicode.GetString(
-                                buffer,
-                                offset + nameOffset,
-                                nameLength);
+                            string name =
+                                Encoding.Unicode.GetString(
+                                    buffer,
+                                    offset + nameOffset,
+                                    nameLength);
 
-                            bool relevant = NtfsForensicNative.IsRelevantName(
-                                name,
-                                context.Rules);
+                            bool deleteEvent =
+                                NtfsForensicNative.IsDeleteReason(
+                                    reason);
 
-                            bool deleteEvent = NtfsForensicNative.IsDeleteReason(reason);
-                            if (relevant &&
-                                (deleteEvent ||
-                                 RuleMatcher.FindKnownCheatName(name, context.Rules) is not null ||
-                                 RuleMatcher.ContainsHigh(name, context.Rules)))
+                            DateTimeOffset? timestamp =
+                                NtfsForensicNative.FileTime(
+                                    fileTime);
+
+                            bool recent =
+                                timestamp is null ||
+                                timestamp.Value >= cutoff;
+
+                            bool executableOrArchive =
+                                RuleMatcher.IsExecutableOrArchive(
+                                    name);
+
+                            bool named =
+                                RuleMatcher.FindKnownCheatName(
+                                    name,
+                                    context.Rules) is not null;
+
+                            bool high =
+                                RuleMatcher.ContainsHigh(
+                                    name,
+                                    context.Rules);
+
+                            bool relevant =
+                                recent &&
+                                (named ||
+                                 high ||
+                                 (deleteEvent &&
+                                  executableOrArchive));
+
+                            if (relevant)
                             {
-                                evidence.Add(new EvidenceRecord
-                                {
-                                    Kind = EvidenceKind.UsnJournal,
-                                    Source = Name,
-                                    Name = name,
-                                    Path = $"{drive.Name}{name}",
-                                    Timestamp = NtfsForensicNative.FileTime(fileTime),
-                                    Detail = $"USN event: {NtfsForensicNative.ReasonText(reason)}",
-                                    Metadata = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                                evidence.Add(
+                                    new EvidenceRecord
                                     {
-                                        ["Volume"] = drive.Name,
-                                        ["FileReferenceNumber"] = fileReference.ToString(),
-                                        ["ParentFileReferenceNumber"] = parentReference.ToString(),
-                                        ["Usn"] = usn.ToString(),
-                                        ["Reason"] = $"0x{reason:X8}",
-                                        ["ReasonText"] = NtfsForensicNative.ReasonText(reason),
-                                        ["IsDeleteEvent"] = deleteEvent.ToString(),
-                                        ["FileAttributes"] = $"0x{attributes:X8}",
-                                        ["RecordType"] = deleteEvent
-                                            ? "DeletedUsnTrace"
-                                            : "UsnChangeTrace"
-                                    }
-                                });
+                                        Kind =
+                                            EvidenceKind.UsnJournal,
+                                        Source = Name,
+                                        Name = name,
+                                        Path =
+                                            $"{drive.Name}{name}",
+                                        Timestamp = timestamp,
+                                        Detail =
+                                            $"USN event: {NtfsForensicNative.ReasonText(reason)}",
+                                        Metadata =
+                                            new Dictionary<
+                                                string,
+                                                string>(
+                                                StringComparer.OrdinalIgnoreCase)
+                                            {
+                                                ["Volume"] =
+                                                    drive.Name,
+                                                ["FileReferenceNumber"] =
+                                                    fileReference.ToString(),
+                                                ["ParentFileReferenceNumber"] =
+                                                    parentReference.ToString(),
+                                                ["Usn"] =
+                                                    usn.ToString(),
+                                                ["Reason"] =
+                                                    $"0x{reason:X8}",
+                                                ["ReasonText"] =
+                                                    NtfsForensicNative.ReasonText(reason),
+                                                ["IsDeleteEvent"] =
+                                                    deleteEvent.ToString(),
+                                                ["RecentTrace"] =
+                                                    recent.ToString(),
+                                                ["ExecutableOrArchive"] =
+                                                    executableOrArchive.ToString(),
+                                                ["FileAttributes"] =
+                                                    $"0x{attributes:X8}",
+                                                ["RecordType"] =
+                                                    deleteEvent
+                                                        ? "DeletedUsnTrace"
+                                                        : "UsnChangeTrace"
+                                            }
+                                    });
                             }
                         }
                     }
 
                     checkedRecords++;
-                    offset += (int)recordLength;
+                    offset +=
+                        (int)recordLength;
                 }
 
-                progress?.Report(new ScanProgressUpdate
-                {
-                    Percent = 79,
-                    Module = Name,
-                    Message = $"Reading recent {drive.Name} USN events...",
-                    ItemsChecked = checkedRecords
-                });
+                progress?.Report(
+                    new ScanProgressUpdate
+                    {
+                        Percent =
+                            context.Mode == ScanMode.Quick
+                                ? 63
+                                : 79,
+                        Module = Name,
+                        Message =
+                            context.Mode == ScanMode.Quick
+                                ? $"Checking recent deleted executable/archive events on {drive.Name}..."
+                                : $"Reading recent {drive.Name} USN events...",
+                        ItemsChecked =
+                            checkedRecords
+                    });
 
                 if (nextUsn <= input.StartUsn ||
-                    error == NtfsForensicNative.ErrorHandleEof)
+                    error ==
+                    NtfsForensicNative.ErrorHandleEof)
                     break;
 
-                input.StartUsn = nextUsn;
+                input.StartUsn =
+                    nextUsn;
             }
 
             if (tailOnly ||
                 checkedRecords >= maxRecords ||
-                DateTime.UtcNow - started >= timeLimit)
+                evidence.Count >= maxEvidence ||
+                DateTime.UtcNow - started >=
+                timeLimit)
                 partial = true;
         }
 
-        CoverageStatus status = !available
-            ? CoverageStatus.Unavailable
-            : partial
-                ? CoverageStatus.Partial
-                : CoverageStatus.Completed;
+        CoverageStatus status =
+            !available
+                ? CoverageStatus.Unavailable
+                : partial
+                    ? CoverageStatus.Partial
+                    : CoverageStatus.Completed;
 
-        return Task.FromResult(new CollectorOutput
-        {
-            Module = Name,
-            Status = status,
-            Summary = !available
-                ? "The USN Journal was unavailable on readable NTFS volumes."
-                : $"Checked {checkedRecords:N0} recent journal records and retained {evidence.Count:N0} relevant file-change or deletion traces.",
-            Evidence = evidence,
-            ItemsChecked = checkedRecords,
-            Duration = DateTime.UtcNow - started
-        });
+        return Task.FromResult(
+            new CollectorOutput
+            {
+                Module = Name,
+                Status = status,
+                Summary =
+                    !available
+                        ? "The USN Journal was unavailable on readable NTFS volumes."
+                        : $"Checked {checkedRecords:N0} recent journal records and retained {evidence.Count:N0} relevant file-change or deletion traces.",
+                Evidence = evidence,
+                ItemsChecked = checkedRecords,
+                Duration =
+                    DateTime.UtcNow - started
+            });
     }
 }
 

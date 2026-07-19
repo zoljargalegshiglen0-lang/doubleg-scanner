@@ -1,6 +1,6 @@
 {
   "product": "DoubleG Scanner",
-  "version": "1.9.4",
+  "version": "1.9.5",
   "network_upload": false,
   "telemetry": false,
   "background_service": false,
@@ -34,5 +34,13 @@
     "unallocated_space": "capped executable/archive signature sampling only",
     "restores_files_to_disk": false,
     "scans_personal_photos_or_documents": false
+  },
+  "quick_deleted_trace_scope": {
+    "browser_download_records": true,
+    "missing_downloaded_files": true,
+    "recycle_bin_metadata": true,
+    "usn_deletion_events_when_elevated": true,
+    "raw_unallocated_recovery": false,
+    "classification_note": "Generic deleted executables are review evidence, not confirmed cheats."
   }
 }

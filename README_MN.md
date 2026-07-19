@@ -1,4 +1,4 @@
-# DoubleG Scanner v1.9.4
+# DoubleG Scanner v1.9.5
 
 ## New Forensic Scan
 
@@ -49,3 +49,11 @@ user, DoubleG Scanner offers to restart through Windows UAC.
 ## v1.9.4 UI hotfix
 
 - Removed the READ ONLY badge from the Live Analysis header.
+
+
+## v1.9.5 Quick deleted-download detection
+
+- Quick Scan includes recent browser downloads and missing-file status.
+- Recent Recycle Bin executable/archive traces are included.
+- Elevated Quick Scan includes a capped USN deletion check.
+- Generic deleted executables remain review evidence rather than confirmed cheat detections.

@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.9.5
+- Quick Scan now checks recent browser executable/archive downloads.
+- Quick Scan reports downloaded files that are no longer present.
+- Quick Scan now checks recent relevant Recycle Bin metadata.
+- When elevated, Quick Scan checks a capped recent USN deletion window.
+- Added browser-download + Recycle Bin/USN deletion correlation.
+- Known cheat names/domains can produce strong findings after the file is deleted.
+- Generic deleted executables/archives are shown as Review evidence, not falsely classified as confirmed cheats.
+- Raw unallocated-space recovery remains exclusive to Forensic Scan.
+- Preserved Defender timeout, NTFS forensic, PDF, JSON and UI behavior.
+
 ## 1.9.4
 - Removed the READ ONLY badge from the Live Analysis header.
 - Preserved all scanner privacy, read-only collection, detection, NTFS forensic, Defender timeout, PDF and JSON behavior.

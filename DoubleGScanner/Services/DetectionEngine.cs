@@ -60,8 +60,29 @@ public static class DetectionEngine
                 return (ScanVerdict.Incomplete, risk);
         }
 
-        if (failed >= (mode == ScanMode.Quick ? 2 : 3) || failed + partial >= 6)
+        if (mode == ScanMode.Quick)
+        {
+            string[] requiredQuickModules =
+            {
+                "System profile",
+                "Running processes",
+                "CS2 loaded modules",
+                "Downloaded and local file scan"
+            };
+
+            int requiredQuickFailures = coverage.Count(item =>
+                requiredQuickModules.Contains(
+                    item.Module,
+                    StringComparer.OrdinalIgnoreCase) &&
+                item.Status is CoverageStatus.Failed or CoverageStatus.Unavailable);
+
+            if (requiredQuickFailures >= 2)
+                return (ScanVerdict.Incomplete, risk);
+        }
+        else if (failed >= 3 || failed + partial >= 6)
+        {
             return (ScanVerdict.Incomplete, risk);
+        }
 
         if (findings.Any(x => x.Severity == FindingSeverity.Critical && x.Score >= 80))
             return (ScanVerdict.Detected, risk);
@@ -328,6 +349,21 @@ public static class DetectionEngine
                     "Potential cheat-related download record",
                     "A browser download matched high-risk terms. Browser history alone is supporting evidence.",
                     item, "High-risk term in download metadata"));
+
+            bool missingDownloadedArtifact =
+                item.Metadata.GetValueOrDefault("RecordType") == "Download" &&
+                MetaBool(item, "MissingLocalFile") &&
+                MetaBool(item, "RecentDownload") &&
+                RuleMatcher.IsExecutableOrArchive(item.Path);
+
+            if (missingDownloadedArtifact && !high)
+                findings.Add(F("DGS-WEB-MISSING-024", FindingSeverity.Warning, 34,
+                    "Downloaded executable/archive is no longer present",
+                    "The browser recorded a recent executable or archive download, but the referenced local file is now missing. This is a deleted-download trace and is not by itself proof of cheating.",
+                    item,
+                    "Recent browser download",
+                    "Referenced file no longer exists",
+                    "Manual verification required"));
         }
 
         if (item.Kind == EvidenceKind.Execution && high)
@@ -514,6 +550,90 @@ public static class DetectionEngine
                     "The same high-risk artifact appeared in independent browser, execution, and file/deletion sources.",
                     primary, "Independent evidence correlation", string.Join(", ", kinds)));
             }
+        }
+
+        var browserDownloads = evidence
+            .Where(item =>
+                item.Kind == EvidenceKind.Browser &&
+                item.Metadata.GetValueOrDefault("RecordType") == "Download" &&
+                RuleMatcher.IsExecutableOrArchive(item.Path))
+            .Where(item =>
+                !string.IsNullOrWhiteSpace(item.Name))
+            .ToArray();
+
+        var deletedTraces = evidence
+            .Where(item =>
+                item.Kind == EvidenceKind.DeletedFile ||
+                (item.Kind == EvidenceKind.UsnJournal &&
+                 MetaBool(item, "IsDeleteEvent")))
+            .Where(item =>
+                RuleMatcher.IsExecutableOrArchive(
+                    item.Name ?? item.Path))
+            .Where(item =>
+                !string.IsNullOrWhiteSpace(item.Name))
+            .ToArray();
+
+        foreach (EvidenceRecord browserDownload in browserDownloads)
+        {
+            string normalized =
+                Normalize(browserDownload.Name);
+
+            if (string.IsNullOrWhiteSpace(normalized))
+                continue;
+
+            EvidenceRecord? deleted = deletedTraces
+                .Where(item =>
+                    Normalize(item.Name) == normalized)
+                .OrderByDescending(item =>
+                    item.Timestamp)
+                .FirstOrDefault();
+
+            if (deleted is null)
+                continue;
+
+            string combined =
+                string.Join(
+                    " ",
+                    browserDownload.Name,
+                    browserDownload.Path,
+                    browserDownload.Url,
+                    deleted.Name,
+                    deleted.Path);
+
+            if (RuleMatcher.FindKnownCheatName(
+                    combined,
+                    rules) is not null)
+                continue;
+
+            bool knownDomain =
+                RuleMatcher.IsKnownDomain(
+                    browserDownload.Url,
+                    rules);
+
+            bool high =
+                RuleMatcher.ContainsHigh(
+                    combined,
+                    rules);
+
+            findings.Add(F(
+                "DGS-CORR-DELETED-DOWNLOAD-025",
+                knownDomain || high
+                    ? FindingSeverity.High
+                    : FindingSeverity.Warning,
+                knownDomain || high
+                    ? 64
+                    : 42,
+                knownDomain || high
+                    ? "Suspicious download was later deleted"
+                    : "Downloaded executable/archive was later deleted",
+                knownDomain || high
+                    ? "The same executable/archive appeared in a browser download record and an independent deletion trace, with additional high-risk or known-domain evidence."
+                    : "The same executable/archive appeared in both browser download history and an independent Recycle Bin or USN deletion trace. This confirms download-and-delete activity but does not by itself prove cheating.",
+                deleted,
+                "Browser download + independent deletion trace",
+                $"Browser source: {browserDownload.Url}",
+                $"Deleted trace source: {deleted.Source}",
+                "Manual verification required"));
         }
 
         var downloads = evidence

@@ -308,7 +308,7 @@
                 Foreground="#FFF4EF"
                 FontWeight="SemiBold"
                 FontSize="10.5"/>
-               <TextBlock Text="Active system and recent files"
+               <TextBlock Text="Active system and deleted downloads"
                 Foreground="#A39591"
                 FontSize="8.5"/>
               </StackPanel>

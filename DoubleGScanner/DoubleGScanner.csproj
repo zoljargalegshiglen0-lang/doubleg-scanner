@@ -11,10 +11,10 @@
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <AssemblyName>DoubleGScanner</AssemblyName>
     <RootNamespace>DoubleGScanner</RootNamespace>
-    <Version>1.9.4</Version>
-    <AssemblyVersion>1.9.4.0</AssemblyVersion>
-    <FileVersion>1.9.4.0</FileVersion>
-    <InformationalVersion>1.9.4</InformationalVersion>
+    <Version>1.9.5</Version>
+    <AssemblyVersion>1.9.5.0</AssemblyVersion>
+    <FileVersion>1.9.5.0</FileVersion>
+    <InformationalVersion>1.9.5</InformationalVersion>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\DoubleGScanner.ico</ApplicationIcon>
     <PublishSingleFile>true</PublishSingleFile>
