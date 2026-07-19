@@ -3,7 +3,7 @@ namespace DoubleGScanner.Models;
 public enum ScanMode { Quick, Full, Forensic }
 public enum ScanVerdict { NotDetected, Review, Detected, Incomplete, Cancelled }
 public enum FindingSeverity { Information, Warning, High, Critical }
-public enum EvidenceKind { System, Process, Module, Browser, Execution, DeletedFile, NtfsMetadata, UsnJournal, RawDeletedFile, Network, FileArtifact, Antivirus }
+public enum EvidenceKind { System, KernelSecurity, KernelDriver, CodeIntegrity, Process, Module, Browser, Execution, DeletedFile, NtfsMetadata, UsnJournal, RawDeletedFile, Network, FileArtifact, Antivirus }
 public enum CoverageStatus { Completed, Partial, Unavailable, Skipped, Failed }
 
 public sealed class KnownCheatEntry
@@ -21,11 +21,21 @@ public sealed class KnownCheatNameEntry
     public List<string> Aliases { get; set; } = new();
 }
 
+public sealed class KnownVulnerableDriverEntry
+{
+    public string Name { get; set; } = "";
+    public string Family { get; set; } = "Vulnerable or abused kernel driver";
+    public List<string> FileNames { get; set; } = new();
+    public List<string> HashSha256 { get; set; } = new();
+    public string SourceNote { get; set; } = "";
+}
+
 public sealed class RuleSet
 {
-    public string Version { get; set; } = "1.9.5";
+    public string Version { get; set; } = "1.11.0";
     public List<KnownCheatEntry> KnownCheats { get; set; } = new();
     public List<KnownCheatNameEntry> KnownCheatNames { get; set; } = new();
+    public List<KnownVulnerableDriverEntry> KnownVulnerableDrivers { get; set; } = new();
     // Legacy exact hashes remain supported, but they cannot show a product/family name.
     public List<string> KnownHashes { get; set; } = new();
     public List<string> KnownDomains { get; set; } = new();

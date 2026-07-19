@@ -1,6 +1,6 @@
 {
   "product": "DoubleG Scanner",
-  "version": "1.9.5",
+  "version": "1.11.0",
   "network_upload": false,
   "telemetry": false,
   "background_service": false,
@@ -42,5 +42,63 @@
     "usn_deletion_events_when_elevated": true,
     "raw_unallocated_recovery": false,
     "classification_note": "Generic deleted executables are review evidence, not confirmed cheats."
+  },
+  "kernel_integrity_scope": {
+    "custom_kernel_driver_installed": false,
+    "kernel_memory_modified": false,
+    "loaded_driver_enumeration": true,
+    "driver_hash_and_signature": true,
+    "code_integrity_events": true,
+    "driver_service_install_events": true,
+    "vbs_and_memory_integrity_status": true,
+    "dma_protection_capability": true,
+    "vulnerable_driver_blocklist_configuration": true,
+    "exact_vulnerable_driver_hash_dataset_supported": true,
+    "filename_heuristics_are_conclusive": false
+  },
+  "scan_tier_map": {
+    "quick": {
+      "scope": "Previous Full Scan",
+      "includes": [
+        "system and processes",
+        "CS2 modules",
+        "browser history and downloads",
+        "execution history",
+        "Recycle Bin metadata",
+        "driver/startup persistence",
+        "network activity",
+        "120-day recursive Downloads/Desktop/Temp file scan",
+        "Microsoft Defender Downloads/Desktop scan"
+      ],
+      "kernel_driver_integrity": false,
+      "raw_ntfs_disk_forensics": false
+    },
+    "full": {
+      "scope": "Previous Forensic Scan",
+      "includes": [
+        "all Quick modules",
+        "365-day deeper local artifacts",
+        "NTFS MFT metadata",
+        "USN Journal",
+        "unallocated executable/archive signature sampling",
+        "Microsoft Defender Temp scan"
+      ],
+      "requires_administrator": true,
+      "kernel_driver_integrity": false
+    },
+    "forensic": {
+      "scope": "Full disk forensics plus Kernel & Driver Integrity",
+      "includes": [
+        "all Full modules",
+        "loaded kernel driver enumeration",
+        "driver signature and SHA-256",
+        "VBS/HVCI/DMA security posture",
+        "Code Integrity events",
+        "driver-service installation events",
+        "kernel driver correlation"
+      ],
+      "requires_administrator": true,
+      "kernel_driver_integrity": true
+    }
   }
 }

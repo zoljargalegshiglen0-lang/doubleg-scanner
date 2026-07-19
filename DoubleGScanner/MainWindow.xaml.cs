@@ -127,21 +127,25 @@ public partial class MainWindow : Window
         if (ConsentCheckBox.IsChecked != true)
             return;
 
-        cancellation = new CancellationTokenSource();
-        SetScanning(true);
-        ResetUi();
-
         ScanMode mode = ForensicMode.IsChecked == true
             ? ScanMode.Forensic
             : FullMode.IsChecked == true
                 ? ScanMode.Full
                 : ScanMode.Quick;
 
-        if (mode == ScanMode.Forensic &&
+        if (mode != ScanMode.Quick &&
             !SystemProfileCollector.IsAdministrator())
         {
+            string modeName = mode == ScanMode.Forensic
+                ? "Forensic Scan"
+                : "Full Scan";
+
+            string requirements = mode == ScanMode.Forensic
+                ? "NTFS MFT, USN Journal, unallocated-space signatures, and Kernel & Driver Integrity"
+                : "NTFS MFT, USN Journal, and unallocated-space signatures";
+
             MessageBoxResult choice = MessageBox.Show(
-                "Forensic Scan requires administrator access to read NTFS MFT, USN Journal, and unallocated-cluster metadata.\n\nRestart DoubleG Scanner as administrator now?",
+                $"{modeName} requires administrator access for {requirements}.\n\nRestart DoubleG Scanner as administrator now?",
                 "DoubleG Scanner — Administrator Required",
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Information);
@@ -174,6 +178,10 @@ public partial class MainWindow : Window
 
             return;
         }
+
+        cancellation = new CancellationTokenSource();
+        SetScanning(true);
+        ResetUi();
 
         var progress = new Progress<ScanProgressUpdate>(update =>
         {

@@ -8,7 +8,7 @@ namespace DoubleGScanner.Collectors;
 public sealed class DefenderCollector : IScanCollector
 {
     public string Name => "Microsoft Defender no-remediation scan";
-    public bool Supports(ScanMode mode) => mode != ScanMode.Quick;
+    public bool Supports(ScanMode mode) => true;
 
     public async Task<CollectorOutput> CollectAsync(
         ScanContext context,
@@ -61,7 +61,7 @@ public sealed class DefenderCollector : IScanCollector
                 TimeSpan.FromSeconds(60))
         };
 
-        if (context.Mode == ScanMode.Forensic)
+        if (context.Mode != ScanMode.Quick)
         {
             targets.Add(new DefenderTarget(
                 Path.GetTempPath(),
@@ -149,7 +149,7 @@ public sealed class DefenderCollector : IScanCollector
                 });
             }
 
-            int completedPercent = context.Mode == ScanMode.Forensic
+            int completedPercent = context.Mode != ScanMode.Quick
                 ? 88 + (int)Math.Round(
                     completed / (double)availableTargets.Length * 3)
                 : 85 + (int)Math.Round(
@@ -220,7 +220,7 @@ public sealed class DefenderCollector : IScanCollector
         start.ArgumentList.Add(target.Path);
         start.ArgumentList.Add("-DisableRemediation");
         start.ArgumentList.Add("-CpuThrottling");
-        start.ArgumentList.Add(mode == ScanMode.Forensic ? "45" : "30");
+        start.ArgumentList.Add(mode == ScanMode.Quick ? "30" : "45");
 
         using var process = new Process
         {
@@ -400,10 +400,10 @@ public sealed class DefenderCollector : IScanCollector
         TimeSpan timeout)
     {
         int startPercent =
-            mode == ScanMode.Forensic ? 88 : 85;
+            mode != ScanMode.Quick ? 88 : 85;
 
         int span =
-            mode == ScanMode.Forensic ? 3 : 6;
+            mode != ScanMode.Quick ? 3 : 6;
 
         double elapsedFraction = timeout.TotalSeconds <= 0
             ? 0

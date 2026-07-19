@@ -8,7 +8,7 @@ public sealed class ScanCoordinator
 {
     private readonly IReadOnlyList<IScanCollector> collectors=new IScanCollector[]
     {
-        new SystemProfileCollector(),new ProcessCollector(),new ModuleCollector(),new BrowserCollector(),
+        new SystemProfileCollector(),new KernelIntegrityCollector(),new ProcessCollector(),new ModuleCollector(),new BrowserCollector(),
         new ExecutionHistoryCollector(),new RecycleBinCollector(),new NtfsMftCollector(),new UsnJournalCollector(),new UnallocatedSpaceCollector(),new DriverPersistenceCollector(),new NetworkCollector(),new FileArtifactCollector(),new DefenderCollector()
     };
 

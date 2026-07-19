@@ -66,6 +66,9 @@ public sealed class ReportService
         Coverage(section, result);
         Findings(section, result);
         Timeline(section, result);
+        EvidenceTable(section, result, EvidenceKind.KernelSecurity, "KERNEL SECURITY POSTURE", 20);
+        EvidenceTable(section, result, EvidenceKind.KernelDriver, "LOADED KERNEL DRIVERS", 240);
+        EvidenceTable(section, result, EvidenceKind.CodeIntegrity, "CODE INTEGRITY / DRIVER EVENTS", 180);
         EvidenceTable(section, result, EvidenceKind.Antivirus, "MICROSOFT DEFENDER DETECTIONS", 80);
         EvidenceTable(section, result, EvidenceKind.Browser, "RELEVANT BROWSER RECORDS", 80);
         EvidenceTable(section, result, EvidenceKind.DeletedFile, "RECYCLE BIN DELETED-FILE METADATA", 80);
@@ -261,7 +264,8 @@ public sealed class ReportService
         EvidenceRecord[] items = result.Evidence
             .Where(x => x.Timestamp is not null && (x.Kind == EvidenceKind.Browser || x.Kind == EvidenceKind.Execution ||
                 x.Kind == EvidenceKind.DeletedFile || x.Kind == EvidenceKind.UsnJournal || x.Kind == EvidenceKind.RawDeletedFile ||
-                x.Kind == EvidenceKind.NtfsMetadata || x.Kind == EvidenceKind.Process || x.Kind == EvidenceKind.Antivirus))
+                x.Kind == EvidenceKind.NtfsMetadata || x.Kind == EvidenceKind.CodeIntegrity ||
+                x.Kind == EvidenceKind.KernelDriver || x.Kind == EvidenceKind.Process || x.Kind == EvidenceKind.Antivirus))
             .OrderByDescending(x => x.Timestamp)
             .Take(120)
             .ToArray();

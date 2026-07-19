@@ -1,4 +1,4 @@
-# DoubleG Scanner v1.9.5
+# DoubleG Scanner v1.11.0
 
 ## New Forensic Scan
 
@@ -57,3 +57,20 @@ user, DoubleG Scanner offers to restart through Windows UAC.
 - Recent Recycle Bin executable/archive traces are included.
 - Elevated Quick Scan includes a capped USN deletion check.
 - Generic deleted executables remain review evidence rather than confirmed cheat detections.
+
+
+## v1.10.0 Kernel & Driver Integrity
+
+- Loaded kernel driver enumeration, path resolution, signature, publisher and SHA-256.
+- VBS, Memory Integrity, Code Integrity policy, DMA capability and driver-blocklist posture.
+- Full/Forensic Code Integrity and driver-service event collection.
+- Exact vulnerable-driver hash support and non-conclusive filename heuristics.
+- No custom `.sys` driver and no kernel memory modification.
+
+
+## v1.11.0 scan tier mapping
+
+- Quick = previous Full Scan.
+- Full = previous Forensic Scan.
+- Forensic = Full disk forensics + Kernel & Driver Integrity.
+- Kernel integrity now runs only in Forensic mode.

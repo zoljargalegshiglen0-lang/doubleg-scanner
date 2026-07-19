@@ -11,6 +11,7 @@ public static class DetectionEngine
         foreach (EvidenceRecord item in evidence)
         {
             if (TryAddDefenderFinding(item, findings)) continue;
+            if (TryAddVulnerableDriverHashFinding(item, rules, findings)) continue;
             if (TryAddExactHashFinding(item, rules, findings)) continue;
 
             string combined = string.Join(" ", item.Name, item.Path, item.Url, item.Detail,
@@ -43,20 +44,38 @@ public static class DetectionEngine
         int partial = coverage.Count(x => x.Status == CoverageStatus.Partial);
         int risk = Math.Min(200, findings.Sum(x => x.Score));
 
-        if (mode == ScanMode.Forensic)
+        if (mode is ScanMode.Full or ScanMode.Forensic)
         {
-            string[] requiredForensicModules =
+            string[] requiredDiskForensicModules =
             {
                 "NTFS MFT metadata",
                 "USN change journal",
                 "Unallocated-space signature scan"
             };
 
-            bool missingRequiredForensicModule = coverage.Any(item =>
-                requiredForensicModules.Contains(item.Module, StringComparer.OrdinalIgnoreCase) &&
-                item.Status is CoverageStatus.Unavailable or CoverageStatus.Failed or CoverageStatus.Skipped);
+            bool missingRequiredDiskModule = coverage.Any(item =>
+                requiredDiskForensicModules.Contains(
+                    item.Module,
+                    StringComparer.OrdinalIgnoreCase) &&
+                item.Status is CoverageStatus.Unavailable or
+                    CoverageStatus.Failed or
+                    CoverageStatus.Skipped);
 
-            if (missingRequiredForensicModule)
+            if (missingRequiredDiskModule)
+                return (ScanVerdict.Incomplete, risk);
+        }
+
+        if (mode == ScanMode.Forensic)
+        {
+            bool missingKernelIntegrity = coverage.Any(item =>
+                item.Module.Equals(
+                    "Kernel & driver integrity",
+                    StringComparison.OrdinalIgnoreCase) &&
+                item.Status is CoverageStatus.Unavailable or
+                    CoverageStatus.Failed or
+                    CoverageStatus.Skipped);
+
+            if (missingKernelIntegrity)
                 return (ScanVerdict.Incomplete, risk);
         }
 
@@ -115,6 +134,51 @@ public static class DetectionEngine
             DetectionMethod = "Microsoft Defender custom scan (-DisableRemediation)",
             Reasons = new[] { "Antivirus engine detection", "DoubleG Scanner did not delete or quarantine the file" }
         });
+        return true;
+    }
+
+    private static bool TryAddVulnerableDriverHashFinding(
+        EvidenceRecord item,
+        RuleSet rules,
+        List<ScanFinding> findings)
+    {
+        if (item.Kind != EvidenceKind.KernelDriver)
+            return false;
+
+        KnownVulnerableDriverEntry? match =
+            RuleMatcher.FindKnownVulnerableDriverByHash(
+                item.HashSha256,
+                rules);
+
+        if (match is null)
+            return false;
+
+        findings.Add(new ScanFinding
+        {
+            RuleId = "DGS-KERNEL-HASH-001",
+            Severity = FindingSeverity.Critical,
+            Score = 100,
+            Title = $"Exact vulnerable-driver hash matched: {match.Name}",
+            Summary =
+                "A loaded kernel driver exactly matched a SHA-256 entry in the vulnerable-driver dataset.",
+            EvidenceSource = item.Source,
+            Path = item.Path,
+            HashSha256 = item.HashSha256,
+            Timestamp = item.Timestamp,
+            DetectedCheatName = match.Name,
+            CheatFamily = match.Family,
+            DetectionMethod =
+                "Exact SHA-256 vulnerable-driver signature",
+            Reasons = new[]
+            {
+                "Loaded kernel driver",
+                "Exact SHA-256 match",
+                string.IsNullOrWhiteSpace(match.SourceNote)
+                    ? "Verified driver signature entry"
+                    : match.SourceNote
+            }
+        });
+
         return true;
     }
 
@@ -316,6 +380,235 @@ public static class DetectionEngine
         bool medium = RuleMatcher.ContainsMedium(combined, rules);
         bool userWritable = RuleMatcher.IsUserWritable(item.Path);
         bool trusted = RuleMatcher.IsTrustedPublisher(item.Publisher, rules);
+
+        if (item.Kind == EvidenceKind.KernelSecurity)
+        {
+            string blocklist =
+                item.Metadata.GetValueOrDefault(
+                    "VulnerableDriverBlocklistConfigured") ??
+                "";
+
+            string memoryIntegrity =
+                item.Metadata.GetValueOrDefault(
+                    "MemoryIntegrityRunning") ??
+                "";
+
+            string dma =
+                item.Metadata.GetValueOrDefault(
+                    "KernelDmaProtectionAvailable") ??
+                "";
+
+            if (blocklist.Equals(
+                    "Disabled",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                findings.Add(F(
+                    "DGS-KERNEL-POSTURE-002",
+                    FindingSeverity.Warning,
+                    8,
+                    "Microsoft vulnerable-driver blocklist is explicitly disabled",
+                    "Windows is explicitly configured not to use the vulnerable-driver blocklist. This is a security posture warning, not cheat evidence.",
+                    item,
+                    "Kernel hardening disabled"));
+            }
+
+            if (memoryIntegrity.Equals(
+                    "False",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                findings.Add(F(
+                    "DGS-KERNEL-POSTURE-003",
+                    FindingSeverity.Information,
+                    0,
+                    "Memory Integrity is not running",
+                    "Memory Integrity / HVCI was not reported as running. This is a hardening status only.",
+                    item,
+                    "Security posture information"));
+            }
+
+            if (dma.Equals(
+                    "False",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                findings.Add(F(
+                    "DGS-KERNEL-POSTURE-004",
+                    FindingSeverity.Information,
+                    0,
+                    "Kernel DMA Protection capability was not reported",
+                    "The Device Guard status did not report DMA protection capability. This does not prove DMA cheating.",
+                    item,
+                    "Hardware security capability information"));
+            }
+        }
+
+        if (item.Kind == EvidenceKind.KernelDriver)
+        {
+            bool loaded =
+                MetaBool(
+                    item,
+                    "Loaded");
+
+            bool systemPath =
+                MetaBool(
+                    item,
+                    "IsSystemDriverPath");
+
+            bool userWritableDriver =
+                MetaBool(
+                    item,
+                    "IsUserWritablePath");
+
+            bool filenameHeuristic =
+                MetaBool(
+                    item,
+                    "FilenameHeuristicMatch");
+
+            if (loaded &&
+                userWritableDriver)
+            {
+                findings.Add(F(
+                    "DGS-KERNEL-DRIVER-005",
+                    FindingSeverity.Critical,
+                    90,
+                    "Kernel driver loaded from a user-writable path",
+                    "A loaded kernel driver resolved to a user-writable directory. This is a strong kernel-integrity indicator requiring immediate review.",
+                    item,
+                    "Loaded kernel module",
+                    "User-writable driver path",
+                    item.IsSignatureValid == true
+                        ? "Signature valid"
+                        : "Signature not validated"));
+            }
+            else if (loaded &&
+                     item.IsSignatureValid == false &&
+                     !systemPath)
+            {
+                findings.Add(F(
+                    "DGS-KERNEL-DRIVER-006",
+                    FindingSeverity.High,
+                    70,
+                    "Non-system loaded driver failed signature validation",
+                    "A loaded kernel driver outside the Windows directory did not pass the available Authenticode validation.",
+                    item,
+                    "Loaded kernel module",
+                    "Non-system path",
+                    "Signature validation failed or was unavailable",
+                    "Catalog-only signing may require manual verification"));
+            }
+            else if (loaded &&
+                     item.IsSignatureValid == false &&
+                     systemPath)
+            {
+                findings.Add(F(
+                    "DGS-KERNEL-DRIVER-007",
+                    FindingSeverity.Warning,
+                    18,
+                    "System driver signature requires manual verification",
+                    "A Windows-path driver did not pass the scanner's file-level signature check. Catalog signing and servicing state can cause false positives.",
+                    item,
+                    "Manual driver signature review",
+                    "Do not treat this finding alone as cheat evidence"));
+            }
+
+            if (filenameHeuristic)
+            {
+                findings.Add(F(
+                    "DGS-KERNEL-DRIVER-008",
+                    FindingSeverity.High,
+                    56,
+                    "Loaded driver filename matches an abused-driver heuristic",
+                    "The loaded driver filename matched a review list associated with vulnerable or frequently abused driver families. Filename matching alone is not conclusive.",
+                    item,
+                    item.Metadata.GetValueOrDefault(
+                        "FilenameHeuristicName") ??
+                    "Driver filename heuristic",
+                    "Verify exact version and SHA-256"));
+            }
+
+            if (loaded &&
+                !systemPath &&
+                !trusted &&
+                !userWritableDriver &&
+                item.IsSignatureValid != true)
+            {
+                findings.Add(F(
+                    "DGS-KERNEL-DRIVER-009",
+                    FindingSeverity.Warning,
+                    30,
+                    "Untrusted non-system kernel driver",
+                    "A loaded driver outside the Windows directory was not associated with a trusted publisher.",
+                    item,
+                    "Non-system path",
+                    "Publisher/signature requires manual review"));
+            }
+        }
+
+        if (item.Kind == EvidenceKind.CodeIntegrity)
+        {
+            string recordType =
+                item.Metadata.GetValueOrDefault(
+                    "RecordType") ??
+                "";
+
+            bool driverServiceInstall =
+                recordType.Equals(
+                    "DriverServiceInstallEvent",
+                    StringComparison.OrdinalIgnoreCase);
+
+            bool userWritableEventPath =
+                RuleMatcher.IsUserWritable(
+                    item.Path);
+
+            KnownVulnerableDriverEntry? nameMatch =
+                RuleMatcher.FindKnownVulnerableDriverByName(
+                    item.Name,
+                    item.Path,
+                    rules);
+
+            if (driverServiceInstall &&
+                userWritableEventPath)
+            {
+                findings.Add(F(
+                    "DGS-KERNEL-EVENT-010",
+                    FindingSeverity.High,
+                    68,
+                    "Driver service installed from a user-writable path",
+                    "Windows recorded installation of a driver-like service whose image path is user-writable.",
+                    item,
+                    "Service Control Manager event 7045",
+                    "User-writable .sys path"));
+            }
+            else if (driverServiceInstall)
+            {
+                findings.Add(F(
+                    "DGS-KERNEL-EVENT-011",
+                    FindingSeverity.Warning,
+                    24,
+                    "Recent driver-service installation event",
+                    "Windows recorded installation of a driver-like service. Review the image path, publisher, and installation context.",
+                    item,
+                    "Service Control Manager event 7045"));
+            }
+            else
+            {
+                findings.Add(F(
+                    "DGS-KERNEL-EVENT-012",
+                    nameMatch is not null
+                        ? FindingSeverity.High
+                        : FindingSeverity.Warning,
+                    nameMatch is not null
+                        ? 66
+                        : 38,
+                    nameMatch is not null
+                        ? "Code Integrity event references a high-risk driver filename"
+                        : "Windows Code Integrity driver event",
+                    "Windows Code Integrity recorded a driver-related image verification event. A blocked or failed load attempt is evidence of activity, not proof that the driver successfully loaded.",
+                    item,
+                    nameMatch?.Name ??
+                    "Code Integrity Operational log",
+                    "Manual event review required"));
+            }
+        }
 
         if (item.Kind == EvidenceKind.Module &&
             string.Equals(item.Metadata.GetValueOrDefault("ProcessName"), "cs2.exe", StringComparison.OrdinalIgnoreCase))
@@ -550,6 +843,94 @@ public static class DetectionEngine
                     "The same high-risk artifact appeared in independent browser, execution, and file/deletion sources.",
                     primary, "Independent evidence correlation", string.Join(", ", kinds)));
             }
+        }
+
+        var loadedKernelDrivers = evidence
+            .Where(item =>
+                item.Kind == EvidenceKind.KernelDriver &&
+                MetaBool(item, "Loaded") &&
+                !string.IsNullOrWhiteSpace(item.Name))
+            .ToArray();
+
+        var driverArtifacts = evidence
+            .Where(item =>
+                item.Kind is EvidenceKind.Browser or
+                    EvidenceKind.FileArtifact or
+                    EvidenceKind.DeletedFile or
+                    EvidenceKind.UsnJournal or
+                    EvidenceKind.Execution)
+            .Where(item =>
+                Path.GetExtension(
+                    item.Path ?? item.Name)
+                    .Equals(
+                        ".sys",
+                        StringComparison.OrdinalIgnoreCase))
+            .Where(item =>
+                !string.IsNullOrWhiteSpace(item.Name))
+            .ToArray();
+
+        foreach (EvidenceRecord loadedDriver in loadedKernelDrivers)
+        {
+            string normalizedDriver =
+                Normalize(
+                    loadedDriver.Name);
+
+            if (string.IsNullOrWhiteSpace(
+                    normalizedDriver))
+                continue;
+
+            EvidenceRecord[] related =
+                driverArtifacts
+                    .Where(item =>
+                        Normalize(
+                            item.Name) ==
+                        normalizedDriver)
+                    .ToArray();
+
+            if (related.Length == 0)
+                continue;
+
+            bool strong =
+                MetaBool(
+                    loadedDriver,
+                    "IsUserWritablePath") ||
+                MetaBool(
+                    loadedDriver,
+                    "FilenameHeuristicMatch") ||
+                related.Any(item =>
+                    RuleMatcher.ContainsHigh(
+                        string.Join(
+                            " ",
+                            item.Name,
+                            item.Path,
+                            item.Url,
+                            item.Detail),
+                        rules));
+
+            EvidenceRecord primary =
+                related
+                    .OrderByDescending(item =>
+                        item.Timestamp)
+                    .First();
+
+            findings.Add(F(
+                "DGS-KERNEL-CORR-013",
+                strong
+                    ? FindingSeverity.Critical
+                    : FindingSeverity.High,
+                strong
+                    ? 88
+                    : 62,
+                strong
+                    ? "Loaded kernel driver correlated with suspicious file activity"
+                    : "Loaded kernel driver correlated with recent file activity",
+                "The same .sys filename appeared as a currently loaded kernel driver and in an independent browser, file, deletion, USN, or execution artifact.",
+                loadedDriver,
+                $"Related source: {primary.Source}",
+                $"Related artifact: {primary.Path ?? primary.Url ?? primary.Name}",
+                strong
+                    ? "Additional high-risk driver evidence"
+                    : "Manual verification required"));
         }
 
         var browserDownloads = evidence

@@ -310,7 +310,7 @@ internal static class NtfsForensicNative
 public sealed class NtfsMftCollector : IScanCollector
 {
     public string Name => "NTFS MFT metadata";
-    public bool Supports(ScanMode mode) => mode == ScanMode.Forensic;
+    public bool Supports(ScanMode mode) => mode != ScanMode.Quick;
 
     public Task<CollectorOutput> CollectAsync(
         ScanContext context,
@@ -519,7 +519,7 @@ public sealed class UsnJournalCollector : IScanCollector
     public string Name => "USN change journal";
 
     public bool Supports(ScanMode mode) =>
-        mode is ScanMode.Quick or ScanMode.Forensic;
+        mode != ScanMode.Quick;
 
     public Task<CollectorOutput> CollectAsync(
         ScanContext context,
@@ -549,31 +549,11 @@ public sealed class UsnJournalCollector : IScanCollector
                 });
         }
 
-        int maxRecords =
-            context.Mode == ScanMode.Quick
-                ? 80_000
-                : 300_000;
-
-        int maxEvidence =
-            context.Mode == ScanMode.Quick
-                ? 500
-                : 5_000;
-
-        TimeSpan timeLimit =
-            context.Mode == ScanMode.Quick
-                ? TimeSpan.FromSeconds(12)
-                : TimeSpan.FromSeconds(35);
-
-        long recentWindow =
-            context.Mode == ScanMode.Quick
-                ? 64L * 1024 * 1024
-                : 512L * 1024 * 1024;
-
-        DateTimeOffset cutoff =
-            DateTimeOffset.Now.AddDays(
-                context.Mode == ScanMode.Quick
-                    ? -45
-                    : -365);
+        int maxRecords = 300_000;
+        int maxEvidence = 5_000;
+        TimeSpan timeLimit = TimeSpan.FromSeconds(35);
+        long recentWindow = 512L * 1024 * 1024;
+        DateTimeOffset cutoff = DateTimeOffset.Now.AddDays(-365);
 
         foreach (DriveInfo drive in
                  NtfsForensicNative.NtfsFixedDrives())
@@ -842,15 +822,9 @@ public sealed class UsnJournalCollector : IScanCollector
                 progress?.Report(
                     new ScanProgressUpdate
                     {
-                        Percent =
-                            context.Mode == ScanMode.Quick
-                                ? 63
-                                : 79,
+                        Percent = 79,
                         Module = Name,
-                        Message =
-                            context.Mode == ScanMode.Quick
-                                ? $"Checking recent deleted executable/archive events on {drive.Name}..."
-                                : $"Reading recent {drive.Name} USN events...",
+                        Message = $"Reading recent {drive.Name} USN events...",
                         ItemsChecked =
                             checkedRecords
                     });
@@ -899,7 +873,7 @@ public sealed class UsnJournalCollector : IScanCollector
 public sealed class UnallocatedSpaceCollector : IScanCollector
 {
     public string Name => "Unallocated-space signature scan";
-    public bool Supports(ScanMode mode) => mode == ScanMode.Forensic;
+    public bool Supports(ScanMode mode) => mode != ScanMode.Quick;
 
     private const int SampleSize = 1024 * 1024;
     private const long MaxBytesPerVolume = 256L * 1024 * 1024;

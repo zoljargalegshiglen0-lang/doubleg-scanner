@@ -7,7 +7,7 @@ namespace DoubleGScanner.Collectors;
 public sealed class DriverPersistenceCollector : IScanCollector
 {
     public string Name=>"Drivers and startup persistence";
-    public bool Supports(ScanMode mode)=>mode!=ScanMode.Quick;
+    public bool Supports(ScanMode mode)=>true;
 
     public async Task<CollectorOutput> CollectAsync(ScanContext c,IProgress<ScanProgressUpdate>? p,CancellationToken t)
     {

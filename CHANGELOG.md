@@ -1,5 +1,30 @@
 # Changelog
 
+## 1.11.0
+- Rebalanced the three scan tiers.
+- Quick Scan now uses the previous Full Scan scope.
+- Quick includes browser history/downloads, execution traces, Recycle Bin, driver/startup persistence, recursive Temp/local file scanning, and Microsoft Defender.
+- Full Scan now uses the previous Forensic Scan scope.
+- Full includes NTFS MFT, USN Journal, unallocated executable/archive signatures, 365-day file depth, and Defender Temp scanning.
+- Kernel & Driver Integrity was removed from Quick and Full.
+- Forensic Scan now equals Full disk forensics plus Kernel & Driver Integrity.
+- Full and Forensic automatically request administrator elevation.
+- Fixed the elevation prompt leaving the UI in a false scanning state when elevation was declined.
+- Updated verdict coverage requirements for the new tier mapping.
+
+## 1.10.0
+- Added a user-mode Kernel & Driver Integrity collector.
+- Enumerates currently loaded kernel drivers with Windows PSAPI.
+- Resolves driver paths and records signature, publisher, SHA-256, size, and timestamp.
+- Attempts to enable SeDebugPrivilege for complete driver enumeration on supported systems.
+- Reads VBS, Memory Integrity, Code Integrity policy, DMA capability, Secure Boot, and vulnerable-driver blocklist configuration.
+- Reads recent Windows Code Integrity Operational events in Full and Forensic scans.
+- Reads recent driver-service installation events from the System log.
+- Supports exact vulnerable-driver SHA-256 entries and lower-confidence filename heuristics.
+- Correlates loaded .sys drivers with browser, file, deletion, USN, and execution evidence.
+- Adds kernel security, loaded-driver, and Code Integrity sections to PDF/JSON reports.
+- Does not install a custom kernel driver, read arbitrary kernel memory, or modify system security settings.
+
 ## 1.9.5
 - Quick Scan now checks recent browser executable/archive downloads.
 - Quick Scan reports downloaded files that are no longer present.

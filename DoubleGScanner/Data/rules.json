@@ -1,5 +1,5 @@
 {
-  "version": "1.9.5-local",
+  "version": "1.11.0-local",
   "knownCheats": [],
   "knownHashes": [],
   "knownDomains": [],
@@ -212,6 +212,56 @@
       "aliases": [
         "exloader"
       ]
+    }
+  ],
+  "knownVulnerableDrivers": [
+    {
+      "name": "iqvw64e.sys driver family",
+      "family": "Driver filename requiring manual verification",
+      "fileNames": [
+        "iqvw64e.sys"
+      ],
+      "hashSha256": [],
+      "sourceNote": "Filename heuristic only. Confirm exact version and SHA-256 before enforcement."
+    },
+    {
+      "name": "GDRV driver family",
+      "family": "Driver filename requiring manual verification",
+      "fileNames": [
+        "gdrv.sys",
+        "gdrv2.sys"
+      ],
+      "hashSha256": [],
+      "sourceNote": "Filename heuristic only. Confirm exact version and SHA-256 before enforcement."
+    },
+    {
+      "name": "RTCore driver family",
+      "family": "Driver filename requiring manual verification",
+      "fileNames": [
+        "rtcore64.sys",
+        "rtcore32.sys"
+      ],
+      "hashSha256": [],
+      "sourceNote": "Filename heuristic only. Confirm exact version and SHA-256 before enforcement."
+    },
+    {
+      "name": "DBK driver family",
+      "family": "Driver filename requiring manual verification",
+      "fileNames": [
+        "dbk64.sys",
+        "dbk32.sys"
+      ],
+      "hashSha256": [],
+      "sourceNote": "Filename heuristic only. Confirm exact version and SHA-256 before enforcement."
+    },
+    {
+      "name": "Capcom driver family",
+      "family": "Driver filename requiring manual verification",
+      "fileNames": [
+        "capcom.sys"
+      ],
+      "hashSha256": [],
+      "sourceNote": "Filename heuristic only. Confirm exact version and SHA-256 before enforcement."
     }
   ]
 }

@@ -9,7 +9,7 @@ namespace DoubleGScanner.Collectors;
 public sealed class ExecutionHistoryCollector : IScanCollector
 {
     public string Name=>"Execution history";
-    public bool Supports(ScanMode mode)=>mode!=ScanMode.Quick;
+    public bool Supports(ScanMode mode)=>true;
     public Task<CollectorOutput> CollectAsync(ScanContext c,IProgress<ScanProgressUpdate>? p,CancellationToken t)
     {
         DateTime start=DateTime.UtcNow;var list=new List<EvidenceRecord>();int checkedCount=0;bool partial=false;
@@ -25,7 +25,7 @@ public sealed class ExecutionHistoryCollector : IScanCollector
     private static int Prefetch(List<EvidenceRecord> list,ScanMode mode)
     {
         string folder=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows),"Prefetch");
-        if(!Directory.Exists(folder))return 0;int limit=mode==ScanMode.Forensic?2000:700;
+        if(!Directory.Exists(folder))return 0;int limit=mode==ScanMode.Quick?700:2000;
         FileInfo[] files=new DirectoryInfo(folder).EnumerateFiles("*.pf").OrderByDescending(x=>x.LastWriteTimeUtc).Take(limit).ToArray();
         foreach(FileInfo f in files)
         {
@@ -106,19 +106,13 @@ public sealed class RecycleBinCollector : IScanCollector
         int checkedCount = 0;
         bool partial = false;
 
-        int maxRecords = context.Mode switch
-        {
-            ScanMode.Quick => 3_000,
-            ScanMode.Full => 10_000,
-            _ => 30_000
-        };
+        int maxRecords = context.Mode == ScanMode.Quick
+            ? 10_000
+            : 30_000;
 
-        int recentDays = context.Mode switch
-        {
-            ScanMode.Quick => 45,
-            ScanMode.Full => 120,
-            _ => 365
-        };
+        int recentDays = context.Mode == ScanMode.Quick
+            ? 120
+            : 365;
 
         DateTimeOffset cutoff =
             DateTimeOffset.Now.AddDays(-recentDays);
@@ -185,13 +179,9 @@ public sealed class RecycleBinCollector : IScanCollector
                         deleted.Time is not null &&
                         deleted.Time.Value >= cutoff;
 
-                    bool relevant =
-                        context.Mode == ScanMode.Quick
-                            ? named ||
-                              high ||
-                              (recent &&
-                               executableOrArchive)
-                            : true;
+                    // Quick Scan now has the previous Full Scan scope.
+                    // Retain all available Recycle Bin metadata within its 120-day / 10k cap.
+                    bool relevant = true;
 
                     if (!relevant)
                         continue;
@@ -425,19 +415,15 @@ public sealed class FileArtifactCollector : IScanCollector
         int checkedCount = 0;
         bool partial = false;
 
-        int max = context.Mode switch
-        {
-            ScanMode.Quick => 1500,
-            ScanMode.Full => 7000,
-            _ => 18000
-        };
-        int days = context.Mode switch
-        {
-            ScanMode.Quick => 21,
-            ScanMode.Full => 120,
-            _ => 365
-        };
-        bool recursive = context.Mode != ScanMode.Quick;
+        int max = context.Mode == ScanMode.Quick
+            ? 7000
+            : 18000;
+
+        int days = context.Mode == ScanMode.Quick
+            ? 120
+            : 365;
+
+        bool recursive = true;
         DateTime cutoff = DateTime.UtcNow.AddDays(-days);
 
         string user = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
@@ -451,11 +437,8 @@ public sealed class FileArtifactCollector : IScanCollector
             (downloads, "Downloads"),
             (desktop, "Desktop")
         };
-        if (context.Mode != ScanMode.Quick)
-        {
-            roots.Add((temp, "Temporary files"));
-            roots.Add((localTemp, "Local temporary files"));
-        }
+        roots.Add((temp, "Temporary files"));
+        roots.Add((localTemp, "Local temporary files"));
 
         foreach ((string root, string location) in roots
                      .Where(x => !string.IsNullOrWhiteSpace(x.Path))

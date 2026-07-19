@@ -27,11 +27,9 @@ public sealed class BrowserCollector : IScanCollector
 
             progress?.Report(new ScanProgressUpdate
             {
-                Percent = context.Mode == ScanMode.Quick ? 31 : 38,
+                Percent = context.Mode == ScanMode.Quick ? 38 : 42,
                 Module = Name,
-                Message = context.Mode == ScanMode.Quick
-                    ? $"Checking recent downloads in {profile.Browser} — {profile.Name}"
-                    : $"Checking {profile.Browser} — {profile.Name}",
+                Message = $"Checking visits and downloads in {profile.Browser} — {profile.Name}",
                 ItemsChecked = checkedRows
             });
 
@@ -166,14 +164,11 @@ public sealed class BrowserCollector : IScanCollector
         CancellationToken token)
     {
         int checkedRows = 0;
-        int visitLimit = mode == ScanMode.Quick ? 2_500 : 12_000;
-        int downloadLimit = mode == ScanMode.Quick ? 1_500 : 4_000;
-        int recentDays = mode switch
-        {
-            ScanMode.Quick => 45,
-            ScanMode.Full => 120,
-            _ => 365
-        };
+        int visitLimit = 12_000;
+        int downloadLimit = 4_000;
+        int recentDays = mode == ScanMode.Quick
+            ? 120
+            : 365;
 
         await using var connection =
             new SqliteConnection($"Data Source={path};Mode=ReadOnly");
@@ -398,16 +393,11 @@ public sealed class BrowserCollector : IScanCollector
         CancellationToken token)
     {
         int checkedRows = 0;
-        int visitLimit =
-            mode == ScanMode.Quick ? 2_500 : 12_000;
-        int downloadLimit =
-            mode == ScanMode.Quick ? 1_000 : 3_000;
-        int recentDays = mode switch
-        {
-            ScanMode.Quick => 45,
-            ScanMode.Full => 120,
-            _ => 365
-        };
+        int visitLimit = 12_000;
+        int downloadLimit = 3_000;
+        int recentDays = mode == ScanMode.Quick
+            ? 120
+            : 365;
 
         await using var connection =
             new SqliteConnection($"Data Source={path};Mode=ReadOnly");

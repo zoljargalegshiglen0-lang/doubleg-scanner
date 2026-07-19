@@ -134,6 +134,38 @@ public static class RuleMatcher
         FindKnownCheat(hash, r) is not null ||
         (!string.IsNullOrWhiteSpace(hash) && r.KnownHashes.Contains(hash,StringComparer.OrdinalIgnoreCase));
 
+    public static KnownVulnerableDriverEntry? FindKnownVulnerableDriverByHash(
+        string? hash,
+        RuleSet rules)
+    {
+        if (string.IsNullOrWhiteSpace(hash))
+            return null;
+
+        return rules.KnownVulnerableDrivers.FirstOrDefault(entry =>
+            entry.HashSha256.Any(candidate =>
+                !string.IsNullOrWhiteSpace(candidate) &&
+                candidate.Equals(hash, StringComparison.OrdinalIgnoreCase)));
+    }
+
+    public static KnownVulnerableDriverEntry? FindKnownVulnerableDriverByName(
+        string? name,
+        string? path,
+        RuleSet rules)
+    {
+        string fileName = Path.GetFileName(
+            !string.IsNullOrWhiteSpace(path)
+                ? path
+                : name ?? "");
+
+        if (string.IsNullOrWhiteSpace(fileName))
+            return null;
+
+        return rules.KnownVulnerableDrivers.FirstOrDefault(entry =>
+            entry.FileNames.Any(candidate =>
+                !string.IsNullOrWhiteSpace(candidate) &&
+                candidate.Equals(fileName, StringComparison.OrdinalIgnoreCase)));
+    }
+
     public static KnownCheatNameEntry? FindKnownCheatName(string? value, RuleSet r)
     {
         if (string.IsNullOrWhiteSpace(value)) return null;

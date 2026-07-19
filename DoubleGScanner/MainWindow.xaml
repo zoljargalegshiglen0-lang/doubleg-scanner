@@ -308,7 +308,7 @@
                 Foreground="#FFF4EF"
                 FontWeight="SemiBold"
                 FontSize="10.5"/>
-               <TextBlock Text="Active system and deleted downloads"
+               <TextBlock Text="Browser, execution, Defender and local files"
                 Foreground="#A39591"
                 FontSize="8.5"/>
               </StackPanel>
@@ -323,7 +323,7 @@
                 Foreground="#FFF4EF"
                 FontWeight="SemiBold"
                 FontSize="10.5"/>
-               <TextBlock Text="Recommended complete analysis"
+               <TextBlock Text="MFT, USN and raw deleted signatures"
                 Foreground="#A39591"
                 FontSize="8.5"/>
               </StackPanel>
@@ -337,7 +337,7 @@
                 Foreground="#FFF4EF"
                 FontWeight="SemiBold"
                 FontSize="10.5"/>
-               <TextBlock Text="MFT, USN and deleted signatures"
+               <TextBlock Text="Disk forensics plus kernel driver integrity"
                 Foreground="#A39591"
                 FontSize="8.5"/>
               </StackPanel>
