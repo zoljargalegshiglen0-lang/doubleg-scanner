@@ -136,6 +136,44 @@ public partial class MainWindow : Window
                 ? ScanMode.Full
                 : ScanMode.Quick;
 
+        if (mode == ScanMode.Forensic &&
+            !SystemProfileCollector.IsAdministrator())
+        {
+            MessageBoxResult choice = MessageBox.Show(
+                "Forensic Scan requires administrator access to read NTFS MFT, USN Journal, and unallocated-cluster metadata.\n\nRestart DoubleG Scanner as administrator now?",
+                "DoubleG Scanner — Administrator Required",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Information);
+
+            if (choice == MessageBoxResult.Yes)
+            {
+                try
+                {
+                    string? executable = Environment.ProcessPath;
+                    if (!string.IsNullOrWhiteSpace(executable))
+                    {
+                        Process.Start(new ProcessStartInfo(executable)
+                        {
+                            UseShellExecute = true,
+                            Verb = "runas"
+                        });
+
+                        Application.Current.Shutdown();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(
+                        "Administrator restart was not completed.\n\n" + ex.Message,
+                        "DoubleG Scanner",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                }
+            }
+
+            return;
+        }
+
         var progress = new Progress<ScanProgressUpdate>(update =>
         {
             int percent = Math.Clamp(update.Percent, 0, 100);

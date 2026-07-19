@@ -1,6 +1,6 @@
 {
   "product": "DoubleG Scanner",
-  "version": "1.8.0",
+  "version": "1.9.0",
   "network_upload": false,
   "telemetry": false,
   "background_service": false,
@@ -27,5 +27,12 @@
     "Microsoft Defender custom-scan command output with remediation disabled"
   ],
   "microsoft_defender_disable_remediation": true,
-  "automatic_remediation": false
+  "automatic_remediation": false,
+  "forensic_scope": {
+    "ntfs_mft": "read-only metadata enumeration",
+    "usn_journal": "read-only recent change/deletion events",
+    "unallocated_space": "capped executable/archive signature sampling only",
+    "restores_files_to_disk": false,
+    "scans_personal_photos_or_documents": false
+  }
 }

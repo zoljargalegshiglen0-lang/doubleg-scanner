@@ -1,18 +1,26 @@
-# DoubleG Scanner v1.8.0
+# DoubleG Scanner v1.9.0
 
-DoubleG website-inspired UI redesign.
+## New Forensic Scan
 
-## UI changes
+The third scan mode is now always visible in the Scan Profile card.
 
-- Black and deep-red DoubleG color system.
-- Rounded template-style primary and secondary buttons.
-- Full-width active navigation for Overview, Findings and Coverage.
-- Fixed the weak active-tab background.
-- Explicit foreground colors prevent unreadable black text.
-- Updated DataGrid header, row, hover and selection colors.
-- Dynamic version display remains enabled.
-- Scanner, detection, PDF and JSON logic are unchanged.
+Forensic Scan adds three read-only NTFS modules:
 
-## Build
+- NTFS MFT metadata enumeration
+- USN change/deletion journal inspection
+- Unallocated-space executable/archive signature sampling
 
-Push the patch to GitHub, then run a new `Build DoubleG Scanner` workflow on `main`.
+The scanner does not restore recovered content to disk. It does not recover
+photos, documents, browser databases, or private messages. Raw-volume analysis
+is limited to executable/archive signatures and cheat-related static evidence.
+
+Administrator access is required. When Forensic Scan is started as a standard
+user, DoubleG Scanner offers to restart through Windows UAC.
+
+## Important limits
+
+- MFT metadata does not prove that a file was executed.
+- USN records can be cleared or overwritten.
+- Free-cluster sampling is capped for performance and privacy.
+- SSD TRIM or overwritten clusters can permanently remove deleted content.
+- A completed scan cannot guarantee detection of every private, kernel, or DMA cheat.

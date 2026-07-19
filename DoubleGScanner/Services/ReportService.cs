@@ -68,7 +68,10 @@ public sealed class ReportService
         Timeline(section, result);
         EvidenceTable(section, result, EvidenceKind.Antivirus, "MICROSOFT DEFENDER DETECTIONS", 80);
         EvidenceTable(section, result, EvidenceKind.Browser, "RELEVANT BROWSER RECORDS", 80);
-        EvidenceTable(section, result, EvidenceKind.DeletedFile, "DELETED-FILE METADATA", 80);
+        EvidenceTable(section, result, EvidenceKind.DeletedFile, "RECYCLE BIN DELETED-FILE METADATA", 80);
+        EvidenceTable(section, result, EvidenceKind.UsnJournal, "NTFS USN CHANGE / DELETION EVENTS", 120);
+        EvidenceTable(section, result, EvidenceKind.NtfsMetadata, "NTFS MFT METADATA", 100);
+        EvidenceTable(section, result, EvidenceKind.RawDeletedFile, "UNALLOCATED EXECUTABLE / ARCHIVE SIGNATURES", 100);
         EvidenceTable(section, result, EvidenceKind.Module, "CS2 MODULE EVIDENCE", 160);
         Integrity(section, result);
         Limitations(section, result);
@@ -257,7 +260,8 @@ public sealed class ReportService
     {
         EvidenceRecord[] items = result.Evidence
             .Where(x => x.Timestamp is not null && (x.Kind == EvidenceKind.Browser || x.Kind == EvidenceKind.Execution ||
-                x.Kind == EvidenceKind.DeletedFile || x.Kind == EvidenceKind.Process || x.Kind == EvidenceKind.Antivirus))
+                x.Kind == EvidenceKind.DeletedFile || x.Kind == EvidenceKind.UsnJournal || x.Kind == EvidenceKind.RawDeletedFile ||
+                x.Kind == EvidenceKind.NtfsMetadata || x.Kind == EvidenceKind.Process || x.Kind == EvidenceKind.Antivirus))
             .OrderByDescending(x => x.Timestamp)
             .Take(120)
             .ToArray();

@@ -3,9 +3,9 @@
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
  Title="DoubleG Scanner"
  Width="1060"
- Height="700"
+ Height="742"
  MinWidth="980"
- MinHeight="650"
+ MinHeight="700"
  WindowStartupLocation="CenterScreen"
  WindowStyle="None"
  AllowsTransparency="True"
@@ -258,7 +258,7 @@
        <TabItem>
         <Grid>
          <Grid.RowDefinitions>
-          <RowDefinition Height="246"/>
+          <RowDefinition Height="286"/>
           <RowDefinition Height="12"/>
           <RowDefinition Height="91"/>
           <RowDefinition Height="12"/>
@@ -337,7 +337,7 @@
                 Foreground="#FFF4EF"
                 FontWeight="SemiBold"
                 FontSize="10.5"/>
-               <TextBlock Text="Deep execution and deleted traces"
+               <TextBlock Text="MFT, USN and free-cluster signatures"
                 Foreground="#A39591"
                 FontSize="8.5"/>
               </StackPanel>

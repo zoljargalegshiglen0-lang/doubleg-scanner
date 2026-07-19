@@ -3,7 +3,7 @@ namespace DoubleGScanner.Models;
 public enum ScanMode { Quick, Full, Forensic }
 public enum ScanVerdict { NotDetected, Review, Detected, Incomplete, Cancelled }
 public enum FindingSeverity { Information, Warning, High, Critical }
-public enum EvidenceKind { System, Process, Module, Browser, Execution, DeletedFile, Network, FileArtifact, Antivirus }
+public enum EvidenceKind { System, Process, Module, Browser, Execution, DeletedFile, NtfsMetadata, UsnJournal, RawDeletedFile, Network, FileArtifact, Antivirus }
 public enum CoverageStatus { Completed, Partial, Unavailable, Skipped, Failed }
 
 public sealed class KnownCheatEntry
@@ -23,7 +23,7 @@ public sealed class KnownCheatNameEntry
 
 public sealed class RuleSet
 {
-    public string Version { get; set; } = "1.8.0";
+    public string Version { get; set; } = "1.9.0";
     public List<KnownCheatEntry> KnownCheats { get; set; } = new();
     public List<KnownCheatNameEntry> KnownCheatNames { get; set; } = new();
     // Legacy exact hashes remain supported, but they cannot show a product/family name.

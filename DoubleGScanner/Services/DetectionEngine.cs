@@ -43,7 +43,24 @@ public static class DetectionEngine
         int partial = coverage.Count(x => x.Status == CoverageStatus.Partial);
         int risk = Math.Min(200, findings.Sum(x => x.Score));
 
-        if (failed >= (mode == ScanMode.Quick ? 2 : 3) || failed + partial >= 5)
+        if (mode == ScanMode.Forensic)
+        {
+            string[] requiredForensicModules =
+            {
+                "NTFS MFT metadata",
+                "USN change journal",
+                "Unallocated-space signature scan"
+            };
+
+            bool missingRequiredForensicModule = coverage.Any(item =>
+                requiredForensicModules.Contains(item.Module, StringComparer.OrdinalIgnoreCase) &&
+                item.Status is CoverageStatus.Unavailable or CoverageStatus.Failed or CoverageStatus.Skipped);
+
+            if (missingRequiredForensicModule)
+                return (ScanVerdict.Incomplete, risk);
+        }
+
+        if (failed >= (mode == ScanMode.Quick ? 2 : 3) || failed + partial >= 6)
             return (ScanVerdict.Incomplete, risk);
 
         if (findings.Any(x => x.Severity == FindingSeverity.Critical && x.Score >= 80))
@@ -174,6 +191,62 @@ public static class DetectionEngine
             return;
         }
 
+        if (item.Kind == EvidenceKind.RawDeletedFile)
+        {
+            int rawStaticScore = MetaInt(item, "StaticRiskScore");
+            findings.Add(Named(
+                "DGS-NAMED-RAW-DELETED",
+                rawStaticScore >= 70 ? FindingSeverity.Critical : FindingSeverity.High,
+                rawStaticScore >= 70 ? 92 : 78,
+                $"Raw deleted cheat fragment detected: {named.Name}",
+                "A known cheat-family name was recovered in memory from an executable/archive signature located in unallocated NTFS clusters.",
+                item,
+                named,
+                "Known cheat name + unallocated executable/archive signature",
+                "Cluster was marked free at scan time",
+                "Content was analyzed in memory and was not restored to disk",
+                rawStaticScore > 0 ? $"Static score: {rawStaticScore}/100" : "Named raw signature"));
+            return;
+        }
+
+        if (item.Kind == EvidenceKind.UsnJournal && executableOrArchive)
+        {
+            bool deletion = MetaBool(item, "IsDeleteEvent");
+            findings.Add(Named(
+                deletion ? "DGS-NAMED-USN-DELETE" : "DGS-NAMED-USN",
+                deletion ? FindingSeverity.High : FindingSeverity.Warning,
+                deletion ? 76 : 44,
+                deletion
+                    ? $"USN deleted cheat trace: {named.Name}"
+                    : $"USN named cheat trace: {named.Name}",
+                deletion
+                    ? "The NTFS change journal recorded a deletion or old-name event matching a known cheat-family name."
+                    : "The NTFS change journal contained a file-change event matching a known cheat-family name.",
+                item,
+                named,
+                deletion
+                    ? "Known cheat name in NTFS deletion journal"
+                    : "Known cheat name in NTFS change journal",
+                "Journal metadata only",
+                "Manual verification required"));
+            return;
+        }
+
+        if (item.Kind == EvidenceKind.NtfsMetadata && executableOrArchive)
+        {
+            findings.Add(Named(
+                "DGS-NAMED-MFT",
+                FindingSeverity.Warning,
+                38,
+                $"Named cheat file metadata: {named.Name}",
+                "An NTFS MFT metadata record matched a known cheat-family name. MFT metadata alone does not prove execution or deletion.",
+                item,
+                named,
+                "Known cheat name in MFT metadata",
+                "Manual verification required"));
+            return;
+        }
+
         if (item.Kind == EvidenceKind.Execution && executableOrArchive)
         {
             findings.Add(Named("DGS-NAMED-EXECUTION", FindingSeverity.High, 70,
@@ -272,6 +345,54 @@ public static class DetectionEngine
                 "Recycle Bin metadata referenced a deleted executable/archive matching high-risk terms.",
                 item, "Deleted-file metadata", "Executable/archive extension"));
 
+        if (item.Kind == EvidenceKind.UsnJournal &&
+            MetaBool(item, "IsDeleteEvent") &&
+            high &&
+            RuleMatcher.IsExecutableOrArchive(item.Name))
+        {
+            findings.Add(F(
+                "DGS-USN-021",
+                FindingSeverity.High,
+                58,
+                "NTFS deletion journal matched a high-risk executable/archive",
+                "The USN change journal recorded a deletion or old-name event matching high-risk detection terms.",
+                item,
+                "USN deletion metadata",
+                item.Metadata.GetValueOrDefault("ReasonText") ?? "File deletion or rename event"));
+        }
+
+        if (item.Kind == EvidenceKind.RawDeletedFile)
+        {
+            int rawStaticScore = MetaInt(item, "StaticRiskScore");
+
+            if (rawStaticScore >= 70)
+            {
+                findings.Add(F(
+                    "DGS-RAW-022",
+                    FindingSeverity.High,
+                    72,
+                    "Strong cheat-like deleted binary fragment",
+                    "A PE fragment found in unallocated clusters contained strong CS2 and process/memory manipulation indicators.",
+                    item,
+                    $"Static score: {rawStaticScore}/100",
+                    item.Metadata.GetValueOrDefault("StaticIndicators") ?? "Static indicators",
+                    "Content was not restored to disk"));
+            }
+            else if (rawStaticScore >= 45 || high)
+            {
+                findings.Add(F(
+                    "DGS-RAW-023",
+                    FindingSeverity.Warning,
+                    42,
+                    "Suspicious deleted executable/archive fragment",
+                    "A signature located in free NTFS clusters contained suspicious static strings or high-risk terms.",
+                    item,
+                    $"Signature: {item.Metadata.GetValueOrDefault("SignatureType")}",
+                    $"Disk offset: {item.Metadata.GetValueOrDefault("DiskOffsetHex")}",
+                    "Manual verification required"));
+            }
+        }
+
         bool isDriver = item.Kind == EvidenceKind.FileArtifact && item.Metadata.GetValueOrDefault("RecordType") == "Driver";
         if (isDriver && item.IsSignatureValid == false && userWritable)
             findings.Add(F("DGS-DRV-009", FindingSeverity.Critical, 80,
@@ -361,8 +482,8 @@ public static class DetectionEngine
         {
             EvidenceKind[] kinds = group.Select(x => x.Evidence.Kind).Distinct().ToArray();
             bool browser = kinds.Contains(EvidenceKind.Browser);
-            bool local = kinds.Contains(EvidenceKind.FileArtifact) || kinds.Contains(EvidenceKind.DeletedFile);
-            bool execution = kinds.Contains(EvidenceKind.Execution) || kinds.Contains(EvidenceKind.Process) || kinds.Contains(EvidenceKind.Module);
+            bool local = kinds.Contains(EvidenceKind.FileArtifact) || kinds.Contains(EvidenceKind.DeletedFile) || kinds.Contains(EvidenceKind.NtfsMetadata) || kinds.Contains(EvidenceKind.UsnJournal) || kinds.Contains(EvidenceKind.RawDeletedFile);
+            bool execution = kinds.Contains(EvidenceKind.Execution) || kinds.Contains(EvidenceKind.Process) || kinds.Contains(EvidenceKind.Module) || kinds.Contains(EvidenceKind.UsnJournal);
             if (!browser || !local) continue;
 
             EvidenceRecord primary = group.Select(x => x.Evidence).OrderByDescending(x => x.Timestamp).First();
@@ -385,7 +506,7 @@ public static class DetectionEngine
         {
             EvidenceKind[] kinds = group.Select(x => x.Kind).Distinct().ToArray();
             if (kinds.Contains(EvidenceKind.Browser) && kinds.Contains(EvidenceKind.Execution) &&
-                (kinds.Contains(EvidenceKind.DeletedFile) || kinds.Contains(EvidenceKind.FileArtifact)))
+                (kinds.Contains(EvidenceKind.DeletedFile) || kinds.Contains(EvidenceKind.FileArtifact) || kinds.Contains(EvidenceKind.UsnJournal) || kinds.Contains(EvidenceKind.RawDeletedFile)))
             {
                 EvidenceRecord primary = group.OrderByDescending(x => x.Timestamp).First();
                 findings.Add(F("DGS-CORR-013", FindingSeverity.Critical, 82,

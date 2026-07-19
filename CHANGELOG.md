@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.9.0
+- Fixed the hidden/clipped Forensic Scan selection.
+- Added automatic UAC restart prompt for Forensic Scan.
+- Added read-only NTFS MFT metadata enumeration.
+- Added recent USN change/deletion journal inspection.
+- Added capped unallocated-cluster executable/archive signature sampling.
+- Added forensic evidence to PDF and JSON reports.
+- Forensic verdict becomes Incomplete when required disk-level modules are unavailable.
+- No recovered content is restored or written to disk.
+
 ## 1.8.0
 - Reworked the interface using DoubleG website black and deep-red colors.
 - Added template-style rounded gradient buttons.

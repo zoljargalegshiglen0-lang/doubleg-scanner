@@ -9,7 +9,7 @@ public sealed class ScanCoordinator
     private readonly IReadOnlyList<IScanCollector> collectors=new IScanCollector[]
     {
         new SystemProfileCollector(),new ProcessCollector(),new ModuleCollector(),new BrowserCollector(),
-        new ExecutionHistoryCollector(),new RecycleBinCollector(),new DriverPersistenceCollector(),new NetworkCollector(),new FileArtifactCollector(),new DefenderCollector()
+        new ExecutionHistoryCollector(),new RecycleBinCollector(),new NtfsMftCollector(),new UsnJournalCollector(),new UnallocatedSpaceCollector(),new DriverPersistenceCollector(),new NetworkCollector(),new FileArtifactCollector(),new DefenderCollector()
     };
 
     public async Task<ScanResult> RunAsync(ScanMode mode,IProgress<ScanProgressUpdate>? progress,CancellationToken token)
