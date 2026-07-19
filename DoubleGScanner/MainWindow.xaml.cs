@@ -28,7 +28,7 @@ public partial class MainWindow : Window
         });
         try
         {
-            StatusTitle.Text="System analysis in progress";StatusDescription.Text="Keep the app open. Nothing is uploaded, deleted, or modified.";
+            StatusTitle.Text="DoubleG integrity analysis in progress";StatusDescription.Text="Keep the scanner open while local evidence modules complete.";
             ScanResult result=await coordinator.RunAsync(mode,progress,cancellation.Token);
             lastReport=await reports.CreateAsync(result,cancellation.Token);ShowResult(result);
         }
@@ -54,7 +54,7 @@ public partial class MainWindow : Window
             ScanVerdict.Incomplete=>("INCOMPLETE","One or more required modules could not be completed.","WarningBrush"),
             _=>("CANCELLED","No reliable result was produced.","TextSecondaryBrush")
         };
-        StatusTitle.Text="Scan completed";StatusDescription.Text=$"{r.Mode} scan finished. Local PDF and JSON evidence were generated.";
+        StatusTitle.Text="Integrity analysis completed";StatusDescription.Text=$"{r.Mode} scan finished. Professional PDF and JSON evidence were generated locally.";
         VerdictText.Text=title;VerdictText.Foreground=(Brush)FindResource(brush);VerdictDetail.Text=detail;
         LiveModuleText.Text="Report generated";LiveStatusText.Text=lastReport?.PdfPath??"Report unavailable";
         ItemsCheckedText.Text=$"Evidence records: {r.Evidence.Count:N0}";OpenReportButton.IsEnabled=lastReport is not null;OpenFolderButton.IsEnabled=lastReport is not null;
@@ -63,7 +63,7 @@ public partial class MainWindow : Window
     {
         StatusTitle.Text="Scan cancelled";StatusDescription.Text="The scan stopped safely. No reliable verdict was produced.";
         VerdictText.Text="CANCELLED";VerdictText.Foreground=(Brush)FindResource("TextSecondaryBrush");
-        VerdictDetail.Text="Run a complete scan to produce a valid result.";LiveModuleText.Text="Cancelled";LiveStatusText.Text="No files were modified or uploaded.";
+        VerdictDetail.Text="Run a complete scan to produce a valid result.";LiveModuleText.Text="Cancelled";LiveStatusText.Text="The session ended safely without modifying or uploading files.";
     }
     private void ResetUi()
     {

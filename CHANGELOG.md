@@ -1,32 +1,24 @@
 # Changelog
 
+## 1.3.0
+- Fixed false `NOT DETECTED` results for many downloaded-but-not-executed executable/archive files.
+- Full scan is now the default profile.
+- Quick scan now inspects recent Downloads/Desktop executable and archive artifacts.
+- Added static CS2/cheat/injection indicator correlation for binaries.
+- Added read-only ZIP/JAR embedded payload inspection without extraction.
+- Added conservative `REVIEW` findings for recent unsigned executables, executable archives, and unreadable/encrypted recent archives.
+- Added browser-download + local-file correlation without requiring execution.
+- Added Microsoft Defender custom scan integration using `-DisableRemediation`.
+- Defender threat names and artifact paths now appear in PDF/JSON findings.
+- Added Microsoft Defender coverage to the report.
+- Updated UI descriptions, rules, privacy documentation, manifest and version to 1.3.0.
+
+## 1.2.0
+- Complete DoubleG black/red visual redesign.
+- Added DoubleG logo and premium scan UI.
+
 ## 1.1.1
-- Fixed missing System.IO imports in GitHub Actions builds.
-- Replaced unsupported MigraDoc Color.FromHex with Color.Parse.
-- Fixed Inno Setup discovery in PowerShell.
-- Build scripts now fail correctly on dotnet/Inno errors.
+- Fixed System.IO imports, MigraDoc color parsing and Inno Setup detection.
 
 ## 1.1.0
-- Added named cheat-signature entries.
-- PDF now prints detected cheat name, family, exact detection method, artifact path and SHA-256.
-- Kept legacy unnamed hash compatibility.
-- Added automatic public GitHub Release publishing on version tags.
-- Added installer and portable SHA-256 release files.
-- Added Mongolian public release guide.
-
-## 1.0.0
-
-- Modern WPF dark UI
-- Quick, Full, and Forensic modes
-- Explicit consent and cancellation
-- Process and CS2 module hash/signature inspection
-- Browser relevant metadata collector
-- Prefetch, UserAssist, BAM, and Recent Items collectors
-- Recycle Bin metadata parser
-- Registered drivers and startup-entry collector
-- Live TCP connections and cumulative network counters
-- High-risk location executable/archive metadata scanner
-- Evidence correlation, risk scoring, and four reliable verdict states
-- PDF, JSON, and SHA-256 report bundle
-- Self-contained Windows x64 build and Inno Setup scripts
-- GitHub Actions free Windows build workflow
+- Added named exact SHA-256 cheat signatures and public GitHub release workflow.

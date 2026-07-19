@@ -157,7 +157,118 @@ public static class RuleMatcher
         catch { return false; }
     }
     public static bool IsExecutableOrArchive(string? path) =>
-        Path.GetExtension(path??"").ToLowerInvariant() is ".exe" or ".dll" or ".sys" or ".com" or ".scr" or ".bat" or ".cmd" or ".ps1" or ".zip" or ".rar" or ".7z";
+        Path.GetExtension(path??"").ToLowerInvariant() is ".exe" or ".dll" or ".sys" or ".com" or ".scr" or ".msi" or ".bat" or ".cmd" or ".ps1" or ".vbs" or ".js" or ".zip" or ".rar" or ".7z" or ".jar" or ".iso" or ".img" or ".lnk";
     private static bool ContainsAny(string? v,IEnumerable<string> terms) =>
         !string.IsNullOrWhiteSpace(v) && terms.Any(t=>!string.IsNullOrWhiteSpace(t)&&v.Contains(t,StringComparison.OrdinalIgnoreCase));
+}
+
+public sealed record StaticAnalysisResult(
+    int Score,
+    IReadOnlyList<string> Indicators,
+    bool HasCs2Reference,
+    bool HasInjectionPattern,
+    bool HasCheatTerm)
+{
+    public static StaticAnalysisResult Empty { get; } = new(0, Array.Empty<string>(), false, false, false);
+}
+
+public static class StaticFileAnalyzer
+{
+    private static readonly string[] Cs2Terms =
+    {
+        "cs2.exe", "client.dll", "engine2.dll", "schemasystem.dll", "counter-strike 2", "counter strike 2"
+    };
+
+    private static readonly string[] CheatTerms =
+    {
+        "aimbot", "wallhack", "triggerbot", "silent aim", "silentaim", "ragebot", "antiaim", "anti-aim",
+        "skin changer", "skinchanger", "vac bypass", "manual map", "manualmap", "esp hack", "bhop",
+        "cheat loader", "cheat injector", "external cheat", "internal cheat", "dma cheat", "kdmapper"
+    };
+
+    private static readonly string[] InjectionTerms =
+    {
+        "writeprocessmemory", "createremotethread", "virtualallocex", "ntwritevirtualmemory",
+        "ntcreatethreadex", "setwindowshookex", "openprocess", "readprocessmemory",
+        "createtoolhelp32snapshot", "process32first", "process32next", "queueuserapc",
+        "rtlcreateuserthread", "zwmapviewofsection", "ntmapviewofsection"
+    };
+
+    private static readonly string[] DriverTerms =
+    {
+        "iqvw64e.sys", "dbk64.sys", "gdrv.sys", "rtcore64.sys", "capcom.sys", "kdmapper"
+    };
+
+    public static async Task<StaticAnalysisResult> AnalyzeFileAsync(string path, CancellationToken token)
+    {
+        try
+        {
+            var info = new FileInfo(path);
+            if (!info.Exists || info.Length <= 0) return StaticAnalysisResult.Empty;
+            int length = (int)Math.Min(info.Length, 24L * 1024 * 1024);
+            byte[] bytes = new byte[length];
+            await using FileStream stream = new(path, FileMode.Open, FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete, 1024 * 1024,
+                FileOptions.Asynchronous | FileOptions.SequentialScan);
+            int offset = 0;
+            while (offset < bytes.Length)
+            {
+                int read = await stream.ReadAsync(bytes.AsMemory(offset, bytes.Length - offset), token);
+                if (read == 0) break;
+                offset += read;
+            }
+            if (offset != bytes.Length) Array.Resize(ref bytes, offset);
+            return AnalyzeBytes(bytes);
+        }
+        catch { return StaticAnalysisResult.Empty; }
+    }
+
+    public static StaticAnalysisResult AnalyzeBytes(ReadOnlySpan<byte> bytes)
+    {
+        if (bytes.IsEmpty) return StaticAnalysisResult.Empty;
+        string ascii;
+        string unicode;
+        try
+        {
+            ascii = System.Text.Encoding.Latin1.GetString(bytes).ToLowerInvariant();
+            unicode = System.Text.Encoding.Unicode.GetString(bytes).ToLowerInvariant();
+        }
+        catch { return StaticAnalysisResult.Empty; }
+
+        string joined = ascii + "\n" + unicode;
+        var indicators = new List<string>();
+
+        int cs2Count = MatchTerms(joined, Cs2Terms, indicators, "CS2 reference");
+        int cheatCount = MatchTerms(joined, CheatTerms, indicators, "Cheat-related string");
+        int injectionCount = MatchTerms(joined, InjectionTerms, indicators, "Process/memory API");
+        int driverCount = MatchTerms(joined, DriverTerms, indicators, "Driver/mapper string");
+
+        bool hasCs2 = cs2Count > 0;
+        bool hasCheat = cheatCount > 0;
+        bool hasInjection = injectionCount >= 2;
+
+        int score = 0;
+        if (hasCs2) score += 20;
+        if (hasCheat) score += Math.Min(35, 20 + cheatCount * 5);
+        if (injectionCount >= 2) score += Math.Min(30, 15 + injectionCount * 3);
+        if (driverCount > 0) score += Math.Min(30, 18 + driverCount * 5);
+        if (hasCs2 && hasCheat) score += 25;
+        if (hasCs2 && hasInjection) score += 20;
+        if (hasCheat && hasInjection) score += 15;
+
+        return new(Math.Min(100, score), indicators.Distinct(StringComparer.OrdinalIgnoreCase).Take(24).ToArray(),
+            hasCs2, hasInjection, hasCheat);
+    }
+
+    private static int MatchTerms(string haystack, IEnumerable<string> terms, List<string> indicators, string label)
+    {
+        int count = 0;
+        foreach (string term in terms)
+        {
+            if (!haystack.Contains(term, StringComparison.OrdinalIgnoreCase)) continue;
+            count++;
+            if (indicators.Count < 24) indicators.Add($"{label}: {term}");
+        }
+        return count;
+    }
 }

@@ -19,7 +19,7 @@ public sealed class BrowserCollector : IScanCollector
             try
             {
                 string copy=await CopyDb(profile.Path,c.TempDirectory,t);
-                checkedRows+=profile.Firefox?await ReadFirefox(copy,profile,c.Rules,list,t):await ReadChromium(copy,profile,c.Rules,list,t);
+                checkedRows+=profile.Firefox?await ReadFirefox(copy,profile,c.Rules,list,t):await ReadChromium(copy,profile,c.Rules,c.Mode,list,t);
             }
             catch { partial=true; }
         }
@@ -56,7 +56,7 @@ public sealed class BrowserCollector : IScanCollector
         }
     }
 
-    private static async Task<int> ReadChromium(string path,Profile profile,RuleSet rules,List<EvidenceRecord> list,CancellationToken t)
+    private static async Task<int> ReadChromium(string path,Profile profile,RuleSet rules,ScanMode mode,List<EvidenceRecord> list,CancellationToken t)
     {
         int count=0;await using var con=new SqliteConnection($"Data Source={path};Mode=ReadOnly");await con.OpenAsync(t);
         await using(var cmd=con.CreateCommand())
@@ -83,16 +83,23 @@ public sealed class BrowserCollector : IScanCollector
             while(await r.ReadAsync(t))
             {
                 count++;string current=S(r,0),target=S(r,1),tab=S(r,3),site=S(r,4),referrer=S(r,5);long raw=L(r,2);
+                string selected=!string.IsNullOrWhiteSpace(target)?target:current;
+                DateTimeOffset? timestamp=ChromiumTime(raw);
+                int recentDays=mode==ScanMode.Forensic?365:120;
+                bool recent=timestamp is not null&&timestamp.Value>=DateTimeOffset.Now.AddDays(-recentDays);
+                bool executableOrArchive=RuleMatcher.IsExecutableOrArchive(selected);
                 string all=string.Join(" ",current,target,tab,site,referrer);
                 bool relevant=RuleMatcher.IsKnownDomain(tab,rules)||RuleMatcher.IsKnownDomain(site,rules)||RuleMatcher.ContainsHigh(all,rules)||
-                    (RuleMatcher.ContainsMedium(all,rules)&&RuleMatcher.IsExecutableOrArchive(target));
-                if(!relevant)continue;string selected=!string.IsNullOrWhiteSpace(target)?target:current;
+                    (RuleMatcher.ContainsMedium(all,rules)&&executableOrArchive)||(recent&&executableOrArchive);
+                if(!relevant)continue;
                 list.Add(new(){Kind=EvidenceKind.Browser,Source="Browser activity",
                     Name=Path.GetFileName(selected) is {Length:>0} n?n:"Browser download",Path=selected,
                     Url=!string.IsNullOrWhiteSpace(tab)?tab:!string.IsNullOrWhiteSpace(site)?site:referrer,
-                    Timestamp=ChromiumTime(raw),Detail="Potentially relevant local download record.",
+                    Timestamp=timestamp,Detail=RuleMatcher.ContainsHigh(all,rules)?"Potentially cheat-related local download record.":"Recent executable/archive download record retained for correlation.",
                     Metadata=new(StringComparer.OrdinalIgnoreCase){["Browser"]=profile.Browser,["Profile"]=profile.Name,["RecordType"]="Download",
-                        ["FileExists"]=(!string.IsNullOrWhiteSpace(selected)&&File.Exists(selected)).ToString()}});
+                        ["FileExists"]=(!string.IsNullOrWhiteSpace(selected)&&File.Exists(selected)).ToString(),
+                        ["RecentDownload"]=recent.ToString(),["ExecutableOrArchive"]=executableOrArchive.ToString(),
+                        ["Extension"]=Path.GetExtension(selected)}});
             }
         }
         return count;

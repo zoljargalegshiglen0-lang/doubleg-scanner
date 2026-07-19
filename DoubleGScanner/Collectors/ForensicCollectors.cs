@@ -141,56 +141,332 @@ public sealed class RecycleBinCollector : IScanCollector
 
 public sealed class FileArtifactCollector : IScanCollector
 {
-    public string Name=>"High-risk file locations";
-    public bool Supports(ScanMode mode)=>mode!=ScanMode.Quick;
-    private static readonly HashSet<string> Ext=new(StringComparer.OrdinalIgnoreCase){".exe",".dll",".sys",".com",".scr",".bat",".cmd",".ps1",".zip",".rar",".7z"};
-    public async Task<CollectorOutput> CollectAsync(ScanContext c,IProgress<ScanProgressUpdate>? p,CancellationToken t)
+    public string Name => "Downloaded and local file scan";
+    public bool Supports(ScanMode mode) => true;
+
+    private static readonly HashSet<string> Extensions = new(StringComparer.OrdinalIgnoreCase)
     {
-        DateTime start=DateTime.UtcNow;var list=new List<EvidenceRecord>();int checkedCount=0,max=c.Mode==ScanMode.Forensic?12000:5000,days=c.Mode==ScanMode.Forensic?180:60;
-        DateTime cutoff=DateTime.UtcNow.AddDays(-days);string user=Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        string[] roots={Path.Combine(user,"Downloads"),Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory),Path.GetTempPath(),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"Temp")};
-        foreach(string root in roots.Distinct(StringComparer.OrdinalIgnoreCase))
+        ".exe", ".dll", ".sys", ".com", ".scr", ".msi", ".bat", ".cmd", ".ps1", ".vbs", ".js",
+        ".zip", ".rar", ".7z", ".jar", ".iso", ".img", ".lnk"
+    };
+
+    private static readonly HashSet<string> BinaryExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".exe", ".dll", ".sys", ".com", ".scr", ".msi"
+    };
+
+    private static readonly HashSet<string> ArchiveExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".zip", ".rar", ".7z", ".jar", ".iso", ".img"
+    };
+
+    private static readonly HashSet<string> ArchivePayloadExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".exe", ".dll", ".sys", ".com", ".scr", ".msi", ".bat", ".cmd", ".ps1", ".vbs", ".js",
+        ".zip", ".rar", ".7z", ".jar", ".iso", ".img"
+    };
+
+    public async Task<CollectorOutput> CollectAsync(ScanContext context, IProgress<ScanProgressUpdate>? progress, CancellationToken token)
+    {
+        DateTime started = DateTime.UtcNow;
+        var evidence = new List<EvidenceRecord>();
+        int checkedCount = 0;
+        bool partial = false;
+
+        int max = context.Mode switch
         {
-            if(!Directory.Exists(root))continue;
-            foreach(string file in Files(root))
-            {
-                t.ThrowIfCancellationRequested();if(checkedCount>=max)break;string ext=Path.GetExtension(file);if(!Ext.Contains(ext))continue;
-                FileInfo info;try{info=new(file);}catch{continue;}if(info.LastWriteTimeUtc<cutoff)continue;checkedCount++;
-                string? hash=null;SignatureResult? sig=null;string detail="Metadata only";
-                if(ext is ".exe"or".dll"or".sys"or".com"or".scr"){sig=SignatureVerifier.Verify(file);hash=await HashService.TrySha256Async(file,t);detail=sig.Status;}
-                else if(ext.Equals(".zip",StringComparison.OrdinalIgnoreCase)){string[] entries=ZipNames(file,c.Rules).Take(12).ToArray();if(entries.Length>0)detail="Potentially relevant archive entries: "+string.Join(", ",entries);}
-                bool relevant=RuleMatcher.IsKnownHash(hash,c.Rules)||RuleMatcher.ContainsHigh(file+" "+detail,c.Rules)||
-                    (RuleMatcher.ContainsMedium(file+" "+detail,c.Rules)&&RuleMatcher.IsUserWritable(file));
-                if(!relevant)continue;
-                list.Add(new(){Kind=EvidenceKind.FileArtifact,Source=Name,Name=info.Name,Path=info.FullName,HashSha256=hash,
-                    Publisher=sig?.Publisher,IsSignatureValid=sig?.IsValid,Timestamp=info.LastWriteTime,Detail=detail,
-                    Metadata=new(StringComparer.OrdinalIgnoreCase){["FileSize"]=info.Length.ToString(),["Extension"]=ext,["Created"]=info.CreationTime.ToString("O")}});
-                if(checkedCount%100==0)p?.Report(new(){Percent=80,Module=Name,Message=$"Checking recent executable/archive metadata in {root}",ItemsChecked=checkedCount});
-            }
-            if(checkedCount>=max)break;
+            ScanMode.Quick => 1500,
+            ScanMode.Full => 7000,
+            _ => 18000
+        };
+        int days = context.Mode switch
+        {
+            ScanMode.Quick => 21,
+            ScanMode.Full => 120,
+            _ => 365
+        };
+        bool recursive = context.Mode != ScanMode.Quick;
+        DateTime cutoff = DateTime.UtcNow.AddDays(-days);
+
+        string user = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        string downloads = Path.Combine(user, "Downloads");
+        string desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+        string temp = Path.GetTempPath();
+        string localTemp = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Temp");
+
+        var roots = new List<(string Path, string Location)>
+        {
+            (downloads, "Downloads"),
+            (desktop, "Desktop")
+        };
+        if (context.Mode != ScanMode.Quick)
+        {
+            roots.Add((temp, "Temporary files"));
+            roots.Add((localTemp, "Local temporary files"));
         }
-        return new(){Module=Name,Status=checkedCount>=max?CoverageStatus.Partial:CoverageStatus.Completed,
-            Summary=$"Checked {checkedCount:N0} recent executable/archive files; retained {list.Count:N0} potentially relevant records.",
-            Evidence=list,ItemsChecked=checkedCount,Duration=DateTime.UtcNow-start};
+
+        foreach ((string root, string location) in roots
+                     .Where(x => !string.IsNullOrWhiteSpace(x.Path))
+                     .DistinctBy(x => Path.GetFullPath(x.Path), StringComparer.OrdinalIgnoreCase))
+        {
+            if (!Directory.Exists(root)) continue;
+            try
+            {
+                foreach (string file in EnumerateFiles(root, recursive))
+                {
+                    token.ThrowIfCancellationRequested();
+                    if (checkedCount >= max) break;
+                    string extension = Path.GetExtension(file);
+                    if (!Extensions.Contains(extension)) continue;
+
+                    FileInfo info;
+                    try { info = new FileInfo(file); }
+                    catch { continue; }
+                    if (!info.Exists || info.LastWriteTimeUtc < cutoff) continue;
+
+                    checkedCount++;
+                    bool isBinary = BinaryExtensions.Contains(extension);
+                    bool isArchive = ArchiveExtensions.Contains(extension);
+                    bool isRecent = info.LastWriteTimeUtc >= DateTime.UtcNow.AddDays(-30);
+                    bool isDownload = location.Equals("Downloads", StringComparison.OrdinalIgnoreCase);
+
+                    string? hash = null;
+                    SignatureResult? signature = null;
+                    StaticAnalysisResult staticResult = StaticAnalysisResult.Empty;
+                    ArchiveInspection archive = ArchiveInspection.Empty;
+
+                    if (isBinary)
+                    {
+                        signature = SignatureVerifier.Verify(file);
+                        hash = await HashService.TrySha256Async(file, token);
+                        staticResult = await StaticFileAnalyzer.AnalyzeFileAsync(file, token);
+                    }
+                    else if (extension.Equals(".zip", StringComparison.OrdinalIgnoreCase) ||
+                             extension.Equals(".jar", StringComparison.OrdinalIgnoreCase))
+                    {
+                        hash = await HashService.TrySha256Async(file, token);
+                        archive = await InspectZipAsync(file, context.Rules, token);
+                    }
+                    else if (isArchive)
+                    {
+                        hash = await HashService.TrySha256Async(file, token);
+                        archive = new ArchiveInspection(0, 0, 0, Array.Empty<string>(), true,
+                            "Archive contents require Microsoft Defender or an external archive parser.");
+                    }
+
+                    string combined = string.Join(" ", new[] { file }.Concat(archive.Indicators).Concat(staticResult.Indicators));
+                    bool known = RuleMatcher.IsKnownHash(hash, context.Rules);
+                    bool highKeyword = RuleMatcher.ContainsHigh(combined, context.Rules);
+                    bool mediumKeyword = RuleMatcher.ContainsMedium(combined, context.Rules);
+                    bool unsignedUserBinary = isBinary && signature?.IsValid != true && RuleMatcher.IsUserWritable(file);
+                    bool strongStatic = staticResult.Score >= 45;
+                    bool archiveWithPayload = archive.ExecutableEntries > 0;
+                    bool strongArchive = archive.StaticScore >= 40 || archive.Indicators.Count > 0;
+                    bool recentOpaqueArchive = isArchive && archive.Unreadable && isDownload && isRecent;
+                    bool recentDownloadedBinary = isDownload && isRecent && unsignedUserBinary;
+                    bool recentDownloadedPayloadArchive = isDownload && isRecent && archiveWithPayload;
+                    // Keep recent Downloads candidates even when their names are generic. This lets browser/file
+                    // correlation and Defender evaluate a file that was downloaded but never executed.
+                    bool recentDownloadedCandidate = isDownload && isRecent && (isBinary || isArchive);
+
+                    bool relevant = known || highKeyword || strongStatic || strongArchive ||
+                                    recentDownloadedCandidate || recentDownloadedBinary || recentDownloadedPayloadArchive || recentOpaqueArchive ||
+                                    (mediumKeyword && (unsignedUserBinary || archiveWithPayload));
+                    if (!relevant) continue;
+
+                    string detail = BuildDetail(signature, staticResult, archive, isArchive);
+                    var metadata = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        ["RecordType"] = isDownload ? "RecentDownloadArtifact" : "LocalFileArtifact",
+                        ["Location"] = location,
+                        ["FileSize"] = info.Length.ToString(),
+                        ["Extension"] = extension,
+                        ["Created"] = info.CreationTime.ToString("O"),
+                        ["LastWrite"] = info.LastWriteTime.ToString("O"),
+                        ["Recent30Days"] = isRecent.ToString(),
+                        ["StaticRiskScore"] = staticResult.Score.ToString(),
+                        ["StaticIndicators"] = string.Join("; ", staticResult.Indicators),
+                        ["ArchiveEntryCount"] = archive.EntryCount.ToString(),
+                        ["ArchiveExecutableCount"] = archive.ExecutableEntries.ToString(),
+                        ["ArchiveStaticScore"] = archive.StaticScore.ToString(),
+                        ["ArchiveUnreadable"] = archive.Unreadable.ToString(),
+                        ["ArchiveIndicators"] = string.Join("; ", archive.Indicators)
+                    };
+
+                    evidence.Add(new EvidenceRecord
+                    {
+                        Kind = EvidenceKind.FileArtifact,
+                        Source = Name,
+                        Name = info.Name,
+                        Path = info.FullName,
+                        HashSha256 = hash,
+                        Publisher = signature?.Publisher,
+                        IsSignatureValid = signature?.IsValid,
+                        Timestamp = info.LastWriteTime,
+                        Detail = detail,
+                        Metadata = metadata
+                    });
+
+                    if (checkedCount % 100 == 0)
+                    {
+                        progress?.Report(new ScanProgressUpdate
+                        {
+                            Percent = context.Mode == ScanMode.Quick ? 76 : 82,
+                            Module = Name,
+                            Message = $"Inspecting recent executable and archive files in {location}",
+                            ItemsChecked = checkedCount
+                        });
+                    }
+                }
+            }
+            catch { partial = true; }
+
+            if (checkedCount >= max) break;
+        }
+
+        return new CollectorOutput
+        {
+            Module = Name,
+            Status = checkedCount >= max || partial ? CoverageStatus.Partial : CoverageStatus.Completed,
+            Summary = $"Checked {checkedCount:N0} recent executable/archive files and retained {evidence.Count:N0} items requiring detection review.",
+            Evidence = evidence,
+            ItemsChecked = checkedCount,
+            Duration = DateTime.UtcNow - started
+        };
     }
-    private static IEnumerable<string> Files(string root)
+
+    private static string BuildDetail(SignatureResult? signature, StaticAnalysisResult staticResult, ArchiveInspection archive, bool isArchive)
     {
-        var stack=new Stack<string>();stack.Push(root);while(stack.Count>0){string cur=stack.Pop();string[] fs;try{fs=Directory.GetFiles(cur);}catch{fs=Array.Empty<string>();}
-            foreach(string f in fs)yield return f;string[] ds;try{ds=Directory.GetDirectories(cur);}catch{ds=Array.Empty<string>();}
-            foreach(string dir in ds){try{if((new DirectoryInfo(dir).Attributes&FileAttributes.ReparsePoint)==0)stack.Push(dir);}catch{}}}
+        var parts = new List<string>();
+        if (signature is not null) parts.Add(signature.Status);
+        if (staticResult.Score > 0) parts.Add($"Static score {staticResult.Score}/100: {string.Join(", ", staticResult.Indicators.Take(6))}");
+        if (isArchive)
+        {
+            parts.Add($"Archive entries: {archive.EntryCount}; executable/script payloads: {archive.ExecutableEntries}");
+            if (archive.StaticScore > 0) parts.Add($"Embedded static score: {archive.StaticScore}/100");
+            if (archive.Indicators.Count > 0) parts.Add(string.Join(", ", archive.Indicators.Take(8)));
+            if (archive.Unreadable) parts.Add(archive.Note);
+        }
+        return parts.Count == 0 ? "Recent file metadata" : string.Join(" | ", parts);
     }
-    private static IReadOnlyList<string> ZipNames(string path,RuleSet rules)
+
+    private static IEnumerable<string> EnumerateFiles(string root, bool recursive)
     {
-        var matches=new List<string>();
+        if (!recursive)
+        {
+            string[] top;
+            try { top = Directory.GetFiles(root); }
+            catch { top = Array.Empty<string>(); }
+            foreach (string file in top) yield return file;
+
+            string[] firstLevel;
+            try { firstLevel = Directory.GetDirectories(root); }
+            catch { firstLevel = Array.Empty<string>(); }
+            foreach (string directory in firstLevel.Take(100))
+            {
+                string[] files;
+                try { files = Directory.GetFiles(directory); }
+                catch { files = Array.Empty<string>(); }
+                foreach (string file in files) yield return file;
+            }
+            yield break;
+        }
+
+        var stack = new Stack<string>();
+        stack.Push(root);
+        while (stack.Count > 0)
+        {
+            string current = stack.Pop();
+            string[] files;
+            try { files = Directory.GetFiles(current); }
+            catch { files = Array.Empty<string>(); }
+            foreach (string file in files) yield return file;
+
+            string[] directories;
+            try { directories = Directory.GetDirectories(current); }
+            catch { directories = Array.Empty<string>(); }
+            foreach (string directory in directories)
+            {
+                try
+                {
+                    if ((new DirectoryInfo(directory).Attributes & FileAttributes.ReparsePoint) == 0)
+                        stack.Push(directory);
+                }
+                catch { }
+            }
+        }
+    }
+
+    private static async Task<ArchiveInspection> InspectZipAsync(string path, RuleSet rules, CancellationToken token)
+    {
+        int entries = 0;
+        int executableEntries = 0;
+        int staticScore = 0;
+        bool unreadable = false;
+        var indicators = new List<string>();
+
         try
         {
-            using ZipArchive a=ZipFile.OpenRead(path);
-            foreach(ZipArchiveEntry e in a.Entries.Take(3000))
-                if(RuleMatcher.ContainsHigh(e.FullName,rules)||RuleMatcher.ContainsMedium(e.FullName,rules))
-                    matches.Add(e.FullName);
+            using ZipArchive archive = ZipFile.OpenRead(path);
+            foreach (ZipArchiveEntry entry in archive.Entries.Take(5000))
+            {
+                token.ThrowIfCancellationRequested();
+                entries++;
+                string extension = Path.GetExtension(entry.FullName);
+                string name = entry.FullName;
+                bool executablePayload = ArchivePayloadExtensions.Contains(extension);
+                if (executablePayload) executableEntries++;
+
+                if (RuleMatcher.ContainsHigh(name, rules) || RuleMatcher.ContainsMedium(name, rules))
+                    indicators.Add("Suspicious archive entry name: " + name);
+
+                if (!executablePayload || entry.Length <= 0 || entry.Length > 24L * 1024 * 1024 || staticScore >= 90)
+                    continue;
+
+                try
+                {
+                    await using Stream input = entry.Open();
+                    int limit = (int)Math.Min(entry.Length, 8L * 1024 * 1024);
+                    byte[] bytes = new byte[limit];
+                    int offset = 0;
+                    while (offset < bytes.Length)
+                    {
+                        int read = await input.ReadAsync(bytes.AsMemory(offset, bytes.Length - offset), token);
+                        if (read == 0) break;
+                        offset += read;
+                    }
+                    if (offset != bytes.Length) Array.Resize(ref bytes, offset);
+                    StaticAnalysisResult result = StaticFileAnalyzer.AnalyzeBytes(bytes);
+                    staticScore = Math.Max(staticScore, result.Score);
+                    foreach (string indicator in result.Indicators.Take(10))
+                        indicators.Add($"{entry.FullName}: {indicator}");
+                }
+                catch
+                {
+                    unreadable = true;
+                }
+            }
         }
-        catch { }
-        return matches;
+        catch
+        {
+            unreadable = true;
+        }
+
+        string note = unreadable
+            ? "Some archive content was encrypted, damaged, unsupported, or unavailable for read-only inspection."
+            : "ZIP/JAR archive inspected without extracting files.";
+        return new ArchiveInspection(entries, executableEntries, staticScore,
+            indicators.Distinct(StringComparer.OrdinalIgnoreCase).Take(24).ToArray(), unreadable, note);
+    }
+
+    private sealed record ArchiveInspection(
+        int EntryCount,
+        int ExecutableEntries,
+        int StaticScore,
+        IReadOnlyList<string> Indicators,
+        bool Unreadable,
+        string Note)
+    {
+        public static ArchiveInspection Empty { get; } = new(0, 0, 0, Array.Empty<string>(), false, "");
     }
 }

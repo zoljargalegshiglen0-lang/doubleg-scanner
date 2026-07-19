@@ -9,7 +9,7 @@ public sealed class ScanCoordinator
     private readonly IReadOnlyList<IScanCollector> collectors=new IScanCollector[]
     {
         new SystemProfileCollector(),new ProcessCollector(),new ModuleCollector(),new BrowserCollector(),
-        new ExecutionHistoryCollector(),new RecycleBinCollector(),new DriverPersistenceCollector(),new NetworkCollector(),new FileArtifactCollector()
+        new ExecutionHistoryCollector(),new RecycleBinCollector(),new DriverPersistenceCollector(),new NetworkCollector(),new FileArtifactCollector(),new DefenderCollector()
     };
 
     public async Task<ScanResult> RunAsync(ScanMode mode,IProgress<ScanProgressUpdate>? progress,CancellationToken token)
@@ -38,7 +38,7 @@ public sealed class ScanCoordinator
             string? exe=Environment.ProcessPath;string hash=exe is null?"Unavailable":HashService.TrySha256(exe)??"Unavailable";
             progress?.Report(new(){Percent=98,Module="Report",Message="Generating local PDF and JSON evidence package...",ItemsChecked=evidence.Count,Findings=findings.Count});
             return new(){ScanId=$"DGS-{started:yyyyMMdd-HHmmss}-{Guid.NewGuid():N}"[..31].ToUpperInvariant(),
-                ScannerVersion=Assembly.GetExecutingAssembly().GetName().Version?.ToString()??"1.0.0",Mode=mode,StartedAt=started,CompletedAt=DateTimeOffset.Now,
+                ScannerVersion=Assembly.GetExecutingAssembly().GetName().Version?.ToString()??"1.3.0",Mode=mode,StartedAt=started,CompletedAt=DateTimeOffset.Now,
                 Verdict=verdict,RiskScore=risk,Evidence=evidence,Findings=findings,Coverage=coverage,RuleDatabaseVersion=rules.Version,
                 ScannerBinaryHash=hash,MachineName=Environment.MachineName,WindowsUser=Environment.UserName,IsElevated=SystemProfileCollector.IsAdministrator(),
                 PrivacyStatement="Local-only, read-only scan. No passwords, cookies, session tokens, private messages, photos, or document contents are collected. No files are uploaded, deleted, quarantined, or modified."};

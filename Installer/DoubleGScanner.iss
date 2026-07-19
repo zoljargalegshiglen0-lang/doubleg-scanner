@@ -1,5 +1,5 @@
 #define MyAppName "DoubleG Scanner"
-#define MyAppVersion "1.1.1"
+#define MyAppVersion "1.3.0"
 #define MyAppPublisher "DoubleG"
 #define MyAppExeName "DoubleGScanner.exe"
 [Setup]

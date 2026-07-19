@@ -1,6 +1,6 @@
 {
   "product": "DoubleG Scanner",
-  "version": "1.0.0",
+  "version": "1.3.0",
   "network_upload": false,
   "telemetry": false,
   "background_service": false,
@@ -23,6 +23,9 @@
     "registered driver and Run/RunOnce/Startup metadata",
     "live TCP table and network-interface counters",
     "recent executable/archive metadata in Downloads/Desktop/Temp",
-    "ZIP entry names only"
-  ]
+    "ZIP/JAR entry names and limited embedded executable bytes for static indicators",
+    "Microsoft Defender custom-scan command output with remediation disabled"
+  ],
+  "microsoft_defender_disable_remediation": true,
+  "automatic_remediation": false
 }
