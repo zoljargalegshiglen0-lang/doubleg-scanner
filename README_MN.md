@@ -1,4 +1,4 @@
-# DoubleG Scanner v1.4.0 — Compact UI + Named Detection
+# DoubleG Scanner v1.6.0 — Compact UI + Named Detection
 
 ## Гол шинэчлэлт
 

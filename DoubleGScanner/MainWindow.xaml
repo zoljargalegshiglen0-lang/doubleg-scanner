@@ -2,77 +2,107 @@
  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
  Title="DoubleG Scanner"
- Width="1040" Height="700"
+ Width="1120" Height="760"
  WindowStartupLocation="CenterScreen"
  WindowStyle="None"
  AllowsTransparency="True"
  Background="Transparent"
  ResizeMode="CanMinimize"
  UseLayoutRounding="True">
- <Border CornerRadius="18" Background="{StaticResource WindowPanelBrush}" BorderBrush="#4A292D" BorderThickness="1">
-  <Border.Effect><DropShadowEffect Color="#000000" BlurRadius="28" ShadowDepth="8" Opacity="0.62"/></Border.Effect>
+ <Border CornerRadius="24" Background="{StaticResource WindowPanelBrush}" BorderBrush="#24365B" BorderThickness="1">
+  <Border.Effect><DropShadowEffect Color="#020811" BlurRadius="32" ShadowDepth="10" Opacity="0.55"/></Border.Effect>
   <Grid>
-   <Grid.RowDefinitions><RowDefinition Height="42"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+   <Grid.RowDefinitions>
+    <RowDefinition Height="44"/>
+    <RowDefinition Height="*"/>
+   </Grid.RowDefinitions>
 
-   <!-- Custom dark title bar -->
-   <Border Grid.Row="0" Background="#130D0F" CornerRadius="18,18,0,0" BorderBrush="#362326" BorderThickness="0,0,0,1"
-           MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
-    <Grid>
-     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="14,0,0,0">
-      <Image Source="Assets/DoubleGLogo.png" Width="17" Height="17" Stretch="Uniform" Margin="0,0,8,0"/>
-      <TextBlock Text="DOUBLEG SCANNER" FontSize="11.5" FontWeight="SemiBold" Foreground="#EDE3DF" VerticalAlignment="Center"/>
-      <TextBlock Text="  •  CS2 integrity" FontSize="10" Foreground="#806E6B" VerticalAlignment="Center"/>
+   <!-- Title bar -->
+   <Border Grid.Row="0" Background="#0D1731" CornerRadius="24,24,0,0" BorderBrush="#23355B" BorderThickness="0,0,0,1" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+    <Grid Margin="10,0,8,0">
+     <Grid.ColumnDefinitions>
+      <ColumnDefinition Width="Auto"/>
+      <ColumnDefinition Width="*"/>
+      <ColumnDefinition Width="Auto"/>
+     </Grid.ColumnDefinitions>
+     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+      <Image Source="Assets/DoubleGLogo.png" Width="16" Height="16" Margin="0,0,8,0"/>
+      <TextBlock Text="DoubleG Scanner" FontSize="11.5" FontWeight="SemiBold" Foreground="#F4F7FF" VerticalAlignment="Center"/>
+      <TextBlock Text="  •  Dashboard Security UI" FontSize="10" Foreground="#7F8DB1" VerticalAlignment="Center"/>
      </StackPanel>
-     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,2,5,2">
+     <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
       <Button Style="{StaticResource TitleBarButton}" Content="—" Click="Minimize_Click"/>
-      <Button Style="{StaticResource TitleBarCloseButton}" Content="×" Click="Close_Click"/>
+      <Button Style="{StaticResource TitleBarCloseButton}" Content="✕" Click="Close_Click"/>
      </StackPanel>
     </Grid>
    </Border>
 
-   <Grid Grid.Row="1" Margin="15">
-    <Grid.ColumnDefinitions><ColumnDefinition Width="205"/><ColumnDefinition Width="15"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+   <Grid Grid.Row="1" Margin="16">
+    <Grid.ColumnDefinitions>
+     <ColumnDefinition Width="220"/>
+     <ColumnDefinition Width="16"/>
+     <ColumnDefinition Width="*"/>
+    </Grid.ColumnDefinitions>
 
-    <!-- Compact sidebar -->
-    <Border Grid.Column="0" Background="#0B090A" BorderBrush="#38272A" BorderThickness="1" CornerRadius="16" Padding="15">
+    <!-- Sidebar -->
+    <Border Grid.Column="0" Background="{StaticResource SidebarBrush}" BorderBrush="#24365B" BorderThickness="1" CornerRadius="22" Padding="16">
      <Grid>
-      <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="22"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-      <StackPanel>
-       <Grid>
-        <Border Width="48" Height="48" Background="#180D10" BorderBrush="#63272D" BorderThickness="1" CornerRadius="14">
-         <Image Source="Assets/DoubleGLogo.png" Width="31" Height="31" Stretch="Uniform"/>
+      <Grid.RowDefinitions>
+       <RowDefinition Height="Auto"/>
+       <RowDefinition Height="18"/>
+       <RowDefinition Height="Auto"/>
+       <RowDefinition Height="12"/>
+       <RowDefinition Height="Auto"/>
+       <RowDefinition Height="*"/>
+       <RowDefinition Height="Auto"/>
+      </Grid.RowDefinitions>
+
+      <Grid>
+       <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+       <Border Width="54" Height="54" CornerRadius="18" Background="#101B37" BorderBrush="#2F4471" BorderThickness="1">
+        <Image Source="Assets/DoubleGLogo.png" Width="30" Height="30" Stretch="Uniform"/>
+       </Border>
+       <StackPanel Grid.Column="1" Margin="12,2,0,0">
+        <TextBlock Text="DOUBLEG" Foreground="#F4F7FF" FontSize="21" FontWeight="Bold"/>
+        <TextBlock Text="SCANNER DASHBOARD" Foreground="#93A0C2" FontSize="10" FontWeight="SemiBold"/>
+        <Border Margin="0,7,0,0" HorizontalAlignment="Left" Background="#162340" BorderBrush="#2D3F66" BorderThickness="1" CornerRadius="9" Padding="8,3">
+         <TextBlock Text="v1.6.0" Foreground="#DCE6FF" FontSize="9"/>
         </Border>
-        <Border HorizontalAlignment="Right" VerticalAlignment="Top" Background="#201316" BorderBrush="#51252A" BorderThickness="1" CornerRadius="9" Padding="8,4">
-         <TextBlock Text="v1.4.0" Foreground="#CDBBB7" FontSize="9"/>
-        </Border>
-       </Grid>
-       <TextBlock Text="DOUBLEG" Margin="0,13,0,0" FontSize="20" FontWeight="Bold" Foreground="#F7EEEA"/>
-       <TextBlock Text="SECURITY SCANNER" Margin="0,2,0,0" Foreground="#EA4141" FontSize="9.5" FontWeight="Bold"/>
-      </StackPanel>
+       </StackPanel>
+      </Grid>
 
       <StackPanel Grid.Row="2">
-       <TextBlock Text="SCAN MODE" Foreground="#927F7C" FontSize="9" FontWeight="Bold" Margin="1,0,0,9"/>
-       <RadioButton x:Name="QuickMode" GroupName="ScanMode" Style="{StaticResource ScanModeRadio}">
-        <StackPanel><TextBlock Text="Quick scan" FontWeight="SemiBold" FontSize="12"/><TextBlock Text="Recent files + active system" Margin="0,2,0,0" Foreground="#887875" FontSize="9"/></StackPanel>
-       </RadioButton>
-       <RadioButton x:Name="FullMode" GroupName="ScanMode" IsChecked="True" Style="{StaticResource ScanModeRadio}">
-        <StackPanel><TextBlock Text="Full scan" FontWeight="SemiBold" FontSize="12"/><TextBlock Text="Recommended complete check" Margin="0,2,0,0" Foreground="#887875" FontSize="9"/></StackPanel>
-       </RadioButton>
-       <RadioButton x:Name="ForensicMode" GroupName="ScanMode" Style="{StaticResource ScanModeRadio}">
-        <StackPanel><TextBlock Text="Forensic scan" FontWeight="SemiBold" FontSize="12"/><TextBlock Text="Deep traces + deleted metadata" Margin="0,2,0,0" Foreground="#887875" FontSize="9"/></StackPanel>
-       </RadioButton>
-       <Border Margin="0,4,0,0" Padding="11" Background="#0E0B0C" BorderBrush="#302326" BorderThickness="1" CornerRadius="11">
-        <StackPanel>
-         <StackPanel Orientation="Horizontal"><Ellipse Width="6" Height="6" Fill="#E43B3B" Margin="0,4,7,0"/><TextBlock Text="LOCAL FORENSICS" Foreground="#C8B7B3" FontSize="9" FontWeight="Bold"/></StackPanel>
-         <TextBlock Margin="13,6,0,0" Text="Files, archives, browser downloads, execution traces and Defender results." Foreground="#7E706D" FontSize="9" TextWrapping="Wrap"/>
-        </StackPanel>
+       <TextBlock Text="NAVIGATION" Foreground="#7380A2" FontSize="9" FontWeight="Bold" Margin="2,0,0,10"/>
+       <Border Background="#17274D" BorderBrush="#6A61FF" BorderThickness="1" CornerRadius="12" Padding="12,10" Margin="0,0,0,8">
+        <StackPanel Orientation="Horizontal"><Ellipse Width="8" Height="8" Fill="#6C63FF" Margin="0,5,10,0"/><TextBlock Text="Dashboard" FontWeight="SemiBold"/><TextBlock Text="  •  Overview" Foreground="#95A3C4" FontSize="10"/></StackPanel>
+       </Border>
+       <Border Background="#101A31" BorderBrush="#243456" BorderThickness="1" CornerRadius="12" Padding="12,10" Margin="0,0,0,8">
+        <StackPanel Orientation="Horizontal"><Ellipse Width="8" Height="8" Fill="#3BC6FF" Margin="0,5,10,0"/><TextBlock Text="Findings" FontWeight="SemiBold"/><TextBlock Text="  •  Evidence list" Foreground="#95A3C4" FontSize="10"/></StackPanel>
+       </Border>
+       <Border Background="#101A31" BorderBrush="#243456" BorderThickness="1" CornerRadius="12" Padding="12,10">
+        <StackPanel Orientation="Horizontal"><Ellipse Width="8" Height="8" Fill="#D661FF" Margin="0,5,10,0"/><TextBlock Text="Coverage" FontWeight="SemiBold"/><TextBlock Text="  •  Modules" Foreground="#95A3C4" FontSize="10"/></StackPanel>
        </Border>
       </StackPanel>
 
-      <Border Grid.Row="4" Padding="12" Background="#0D0A0B" BorderBrush="#3B2528" BorderThickness="1" CornerRadius="13">
+      <StackPanel Grid.Row="4">
+       <TextBlock Text="SCAN PROFILE" Foreground="#7380A2" FontSize="9" FontWeight="Bold" Margin="2,0,0,10"/>
+       <RadioButton x:Name="QuickMode" GroupName="ScanMode" Style="{StaticResource ScanModeRadio}">
+        <StackPanel><TextBlock Text="Quick scan" FontWeight="SemiBold" FontSize="12"/><TextBlock Text="Recent files + active system" Margin="0,2,0,0" Foreground="#8C99BC" FontSize="9.5"/></StackPanel>
+       </RadioButton>
+       <RadioButton x:Name="FullMode" GroupName="ScanMode" IsChecked="True" Style="{StaticResource ScanModeRadio}">
+        <StackPanel><TextBlock Text="Full scan" FontWeight="SemiBold" FontSize="12"/><TextBlock Text="Recommended complete check" Margin="0,2,0,0" Foreground="#8C99BC" FontSize="9.5"/></StackPanel>
+       </RadioButton>
+       <RadioButton x:Name="ForensicMode" GroupName="ScanMode" Style="{StaticResource ScanModeRadio}">
+        <StackPanel><TextBlock Text="Forensic scan" FontWeight="SemiBold" FontSize="12"/><TextBlock Text="Deep traces + deleted metadata" Margin="0,2,0,0" Foreground="#8C99BC" FontSize="9.5"/></StackPanel>
+       </RadioButton>
+      </StackPanel>
+
+      <Border Grid.Row="6" Background="#0F1931" BorderBrush="#25375B" BorderThickness="1" CornerRadius="16" Padding="12">
        <StackPanel>
-        <StackPanel Orientation="Horizontal"><Image Source="Assets/DoubleGLogo.png" Width="19" Height="19" Margin="0,0,8,0"/><StackPanel><TextBlock Text="DOUBLEG TEAM" Foreground="#F05A52" FontSize="10" FontWeight="Bold"/><TextBlock Text="MADE BY DOUBLEG" Foreground="#BBA9A5" FontSize="9"/></StackPanel></StackPanel>
-        <TextBlock Text="Mongolian CS2 integrity scanner" Margin="0,8,0,0" Foreground="#746764" FontSize="8.5"/>
+        <TextBlock Text="DOUBLEG TEAM" Foreground="#F4F7FF" FontSize="10.5" FontWeight="Bold"/>
+        <TextBlock Text="Made by DOUBLEG" Foreground="#AAB6D3" FontSize="9.5" Margin="0,3,0,0"/>
+        <Separator Margin="0,9,0,8" Background="#24365A"/>
+        <TextBlock Text="Clean dashboard UI, local read-only scanning and PDF reporting." Foreground="#7380A2" FontSize="8.7" TextWrapping="Wrap"/>
        </StackPanel>
       </Border>
      </Grid>
@@ -80,66 +110,139 @@
 
     <!-- Main content -->
     <Grid Grid.Column="2">
-     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="11"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+     <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="14"/>
+      <RowDefinition Height="*"/>
+     </Grid.RowDefinitions>
+
+     <!-- top header -->
      <Grid>
+      <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
       <StackPanel>
-       <TextBlock Text="Cheat Scan" FontSize="24" FontWeight="Bold" Foreground="#F9F1ED"/>
-       <TextBlock Text="Local system analysis and professional PDF report." Margin="0,4,0,0" FontSize="11" Foreground="#9C8B87"/>
+       <TextBlock Text="Scanner Control Center" FontSize="28" FontWeight="Bold" Foreground="#F5F8FF"/>
+       <TextBlock Text="Modern local integrity scanning with a cleaner dashboard-style interface." Foreground="#9CA8C8" FontSize="11.5" Margin="0,4,0,0"/>
       </StackPanel>
-      <Border HorizontalAlignment="Right" VerticalAlignment="Top" Background="#0D1912" BorderBrush="#28533D" BorderThickness="1" CornerRadius="11" Padding="10,6">
-       <StackPanel Orientation="Horizontal"><Ellipse Width="7" Height="7" Fill="{StaticResource SuccessBrush}" Margin="0,0,7,0"/><TextBlock Text="LOCAL MODE" Foreground="{StaticResource SuccessBrush}" FontSize="9" FontWeight="Bold"/></StackPanel>
-      </Border>
+      <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top">
+       <Border Background="#162340" BorderBrush="#2A3B61" BorderThickness="1" CornerRadius="12" Padding="12,7" Margin="0,0,8,0">
+        <StackPanel Orientation="Horizontal"><Ellipse Width="8" Height="8" Fill="#3BC6FF" Margin="0,3,8,0"/><TextBlock Text="PDF READY" FontSize="9.5" FontWeight="Bold" Foreground="#DDE6FF"/></StackPanel>
+       </Border>
+       <Border Background="#13233B" BorderBrush="#24455A" BorderThickness="1" CornerRadius="12" Padding="12,7">
+        <StackPanel Orientation="Horizontal"><Ellipse Width="8" Height="8" Fill="#3ED598" Margin="0,3,8,0"/><TextBlock Text="LOCAL MODE" FontSize="9.5" FontWeight="Bold" Foreground="#DDE6FF"/></StackPanel>
+       </Border>
+      </StackPanel>
      </Grid>
 
-     <Border Grid.Row="2" Background="#0A090A" BorderBrush="#3C282B" BorderThickness="1" CornerRadius="17" Padding="18">
+     <Border Grid.Row="2" Background="#0E1730" BorderBrush="#24365B" BorderThickness="1" CornerRadius="22" Padding="18">
       <Grid>
-       <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="12"/><RowDefinition Height="Auto"/><RowDefinition Height="12"/><RowDefinition Height="*"/><RowDefinition Height="12"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+       <Grid.RowDefinitions>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="14"/>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="14"/>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="12"/>
+        <RowDefinition Height="*"/>
+        <RowDefinition Height="14"/>
+        <RowDefinition Height="Auto"/>
+       </Grid.RowDefinitions>
 
+       <!-- Hero/status header -->
        <Grid>
-        <StackPanel Margin="0,2,94,0">
-         <TextBlock x:Name="StatusTitle" Text="Ready to scan" FontSize="19" FontWeight="Bold" Foreground="#F6ECE8"/>
-         <TextBlock x:Name="StatusDescription" Text="Choose a scan mode, accept the notice and start the analysis." Margin="0,5,0,0" FontSize="10.5" Foreground="#94827F" TextWrapping="Wrap"/>
+        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="88"/></Grid.ColumnDefinitions>
+        <StackPanel>
+         <TextBlock x:Name="StatusTitle" Text="Ready to scan" FontSize="20" FontWeight="Bold" Foreground="#F4F7FF"/>
+         <TextBlock x:Name="StatusDescription" Text="Choose a scan mode, accept the notice and start the analysis." Margin="0,5,0,0" FontSize="10.7" Foreground="#9AA7C8" TextWrapping="Wrap"/>
         </StackPanel>
-        <Grid Width="76" Height="76" HorizontalAlignment="Right">
-         <Ellipse Fill="#130E10" Stroke="#43262A" StrokeThickness="1"/>
-         <Ellipse Width="58" Height="58" Stroke="#392326" StrokeThickness="5"/>
-         <Ellipse Width="58" Height="58" Stroke="#D93B3D" StrokeThickness="3" StrokeDashArray="2,3" Opacity="0.82"/>
-         <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"><TextBlock x:Name="ProgressText" Text="0%" FontSize="16" FontWeight="Bold" HorizontalAlignment="Center"/><TextBlock Text="SCAN" FontSize="7" Foreground="#83736F" HorizontalAlignment="Center"/></StackPanel>
+        <Grid Grid.Column="1" Width="76" Height="76" HorizontalAlignment="Right">
+         <Ellipse Fill="#111B34" Stroke="#2B406A" StrokeThickness="1"/>
+         <Ellipse Width="58" Height="58" Stroke="#2A3A5E" StrokeThickness="5"/>
+         <Ellipse Width="58" Height="58" Stroke="#6C63FF" StrokeThickness="3" StrokeDashArray="2,3" Opacity="0.95"/>
+         <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+          <TextBlock x:Name="ProgressText" Text="0%" FontSize="16" FontWeight="Bold" HorizontalAlignment="Center"/>
+          <TextBlock Text="SCAN" FontSize="7" Foreground="#7D8CB0" HorizontalAlignment="Center"/>
+         </StackPanel>
         </Grid>
        </Grid>
 
-       <Grid Grid.Row="2"><Border Height="6" Background="#2A1D20" CornerRadius="3"/><ProgressBar x:Name="ScanProgress" Minimum="0" Maximum="100" Value="0"/></Grid>
+       <Grid Grid.Row="2">
+        <Border Height="8" Background="#16213A" CornerRadius="4"/>
+        <ProgressBar x:Name="ScanProgress" Minimum="0" Maximum="100" Value="0"/>
+       </Grid>
 
-       <TabControl Grid.Row="4">
+       <!-- stats cards -->
+       <UniformGrid Grid.Row="4" Columns="4">
+        <Border Margin="0,0,6,0" Background="#131F39" BorderBrush="#26385D" BorderThickness="1" CornerRadius="16" Padding="14">
+         <StackPanel>
+          <TextBlock Text="EVIDENCE" Foreground="#8D9BBB" FontSize="8.5" FontWeight="Bold"/>
+          <TextBlock x:Name="EvidenceCountText" Text="—" Margin="0,7,0,0" FontSize="24" FontWeight="Bold"/>
+          <TextBlock Text="records analyzed" Foreground="#6F7FA3" FontSize="8.8"/>
+         </StackPanel>
+        </Border>
+        <Border Margin="3,0" Background="#131F39" BorderBrush="#26385D" BorderThickness="1" CornerRadius="16" Padding="14">
+         <StackPanel>
+          <TextBlock Text="FINDINGS" Foreground="#8D9BBB" FontSize="8.5" FontWeight="Bold"/>
+          <TextBlock x:Name="FindingCountText" Text="—" Margin="0,7,0,0" FontSize="24" FontWeight="Bold"/>
+          <TextBlock Text="items to review" Foreground="#6F7FA3" FontSize="8.8"/>
+         </StackPanel>
+        </Border>
+        <Border Margin="6,0,3,0" Background="#131F39" BorderBrush="#26385D" BorderThickness="1" CornerRadius="16" Padding="14">
+         <StackPanel>
+          <TextBlock Text="MODULES" Foreground="#8D9BBB" FontSize="8.5" FontWeight="Bold"/>
+          <TextBlock x:Name="ModuleCountText" Text="—" Margin="0,7,0,0" FontSize="24" FontWeight="Bold"/>
+          <TextBlock Text="completed collectors" Foreground="#6F7FA3" FontSize="8.8"/>
+         </StackPanel>
+        </Border>
+        <Border Margin="6,0,0,0" Background="#131F39" BorderBrush="#26385D" BorderThickness="1" CornerRadius="16" Padding="14">
+         <StackPanel>
+          <TextBlock Text="RISK SCORE" Foreground="#8D9BBB" FontSize="8.5" FontWeight="Bold"/>
+          <TextBlock x:Name="RiskScoreText" Text="—" Margin="0,7,0,0" FontSize="24" FontWeight="Bold"/>
+          <TextBlock Text="evidence score" Foreground="#6F7FA3" FontSize="8.8"/>
+         </StackPanel>
+        </Border>
+       </UniformGrid>
+
+       <!-- Main tab area -->
+       <TabControl Grid.Row="6">
         <TabItem Header="Overview">
          <Grid Margin="0,12,0,0">
-          <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="10"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-          <UniformGrid Columns="3">
-           <Border Margin="0,0,6,0" Background="#0D0B0C" BorderBrush="#332326" BorderThickness="1" CornerRadius="12" Padding="13"><StackPanel><TextBlock Text="EVIDENCE" Foreground="#93817E" FontSize="8.5" FontWeight="Bold"/><TextBlock x:Name="EvidenceCountText" Text="—" Margin="0,5,0,0" FontSize="21" FontWeight="Bold"/><TextBlock Text="records analyzed" Foreground="#746764" FontSize="8.5"/></StackPanel></Border>
-           <Border Margin="3,0" Background="#0D0B0C" BorderBrush="#332326" BorderThickness="1" CornerRadius="12" Padding="13"><StackPanel><TextBlock Text="FINDINGS" Foreground="#93817E" FontSize="8.5" FontWeight="Bold"/><TextBlock x:Name="FindingCountText" Text="—" Margin="0,5,0,0" FontSize="21" FontWeight="Bold"/><TextBlock Text="items to review" Foreground="#746764" FontSize="8.5"/></StackPanel></Border>
-           <Border Margin="6,0,0,0" Background="#0D0B0C" BorderBrush="#332326" BorderThickness="1" CornerRadius="12" Padding="13"><StackPanel><TextBlock Text="MODULES" Foreground="#93817E" FontSize="8.5" FontWeight="Bold"/><TextBlock x:Name="ModuleCountText" Text="—" Margin="0,5,0,0" FontSize="21" FontWeight="Bold"/><TextBlock Text="completed collectors" Foreground="#746764" FontSize="8.5"/></StackPanel></Border>
-          </UniformGrid>
+          <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="12"/><ColumnDefinition Width="300"/></Grid.ColumnDefinitions>
+          <Border Background="#131F39" BorderBrush="#26385D" BorderThickness="1" CornerRadius="18" Padding="16">
+           <Grid>
+            <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+            <DockPanel>
+             <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
+              <Ellipse Width="8" Height="8" Fill="#6C63FF" Margin="0,4,8,0"/>
+              <TextBlock Text="LIVE SCAN STATUS" FontSize="9.5" FontWeight="Bold" Foreground="#D5DFFF"/>
+             </StackPanel>
+             <Border DockPanel.Dock="Right" Background="#1B294B" BorderBrush="#304878" BorderThickness="1" CornerRadius="10" Padding="10,4">
+              <TextBlock Text="REAL-TIME" FontSize="8.5" FontWeight="Bold" Foreground="#AFC0E8"/>
+             </Border>
+            </DockPanel>
+            <StackPanel Grid.Row="1" VerticalAlignment="Center">
+             <TextBlock x:Name="LiveModuleText" Text="No scan started" FontSize="16" FontWeight="SemiBold"/>
+             <TextBlock x:Name="LiveStatusText" Text="DoubleG Scanner is ready." Margin="0,7,0,0" FontSize="10.8" Foreground="#9AA7C8" TextWrapping="Wrap"/>
+            </StackPanel>
+            <Border Grid.Row="2" Background="#0F1930" BorderBrush="#24365B" BorderThickness="1" CornerRadius="11" Padding="10,8">
+             <TextBlock x:Name="ItemsCheckedText" Text="Items checked: 0" FontSize="9.5" Foreground="#D7E0FF"/>
+            </Border>
+           </Grid>
+          </Border>
 
-          <Grid Grid.Row="2">
-           <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="12"/><ColumnDefinition Width="260"/></Grid.ColumnDefinitions>
-           <Border Background="#0C0A0B" BorderBrush="#302326" BorderThickness="1" CornerRadius="13" Padding="15">
-            <Grid>
-             <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-             <StackPanel Orientation="Horizontal"><Ellipse Width="7" Height="7" Fill="#E43B3B" Margin="0,4,8,0"/><TextBlock Text="LIVE SCAN STATUS" FontSize="9" FontWeight="Bold" Foreground="#C3B2AE"/></StackPanel>
-             <StackPanel Grid.Row="1" VerticalAlignment="Center"><TextBlock x:Name="LiveModuleText" Text="No scan started" FontSize="15" FontWeight="SemiBold"/><TextBlock x:Name="LiveStatusText" Text="DoubleG Scanner is ready." Margin="0,6,0,0" FontSize="10.5" Foreground="#8D7D79" TextWrapping="Wrap"/></StackPanel>
-             <Border Grid.Row="2" Background="#151012" BorderBrush="#312326" BorderThickness="1" CornerRadius="9" Padding="10,7"><TextBlock x:Name="ItemsCheckedText" Text="Items checked: 0" FontSize="9.5" Foreground="#BBAAA6"/></Border>
-            </Grid>
-           </Border>
-
-           <Border Grid.Column="2" Background="#0C0A0B" BorderBrush="#3A262A" BorderThickness="1" CornerRadius="13" Padding="15">
-            <Grid>
-             <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-             <StackPanel Orientation="Horizontal"><Ellipse Width="7" Height="7" Fill="#E43B3B" Margin="0,4,8,0"/><TextBlock Text="SCAN RESULT" FontSize="9" FontWeight="Bold" Foreground="#C3B2AE"/></StackPanel>
-             <StackPanel Grid.Row="1" VerticalAlignment="Center"><TextBlock x:Name="VerdictText" Text="NOT SCANNED" FontSize="21" FontWeight="Bold"/><TextBlock x:Name="VerdictDetail" Text="A completed scan is required." Margin="0,6,0,0" FontSize="10" Foreground="#8C7C79" TextWrapping="Wrap"/><TextBlock Margin="0,8,0,0" FontSize="9" Foreground="#BDAAA6"><Run Text="Risk score: "/><Run x:Name="RiskScoreText" Text="—" FontWeight="Bold"/></TextBlock></StackPanel>
-             <StackPanel Grid.Row="2"><Button x:Name="OpenReportButton" Style="{StaticResource SecondaryButton}" Content="OPEN PDF REPORT" IsEnabled="False" Click="OpenReportButton_Click"/><Button x:Name="OpenFolderButton" Style="{StaticResource GhostButton}" Content="OPEN REPORT FOLDER" IsEnabled="False" Margin="0,7,0,0" Click="OpenFolderButton_Click"/></StackPanel>
-            </Grid>
-           </Border>
-          </Grid>
+          <Border Grid.Column="2" Background="#131F39" BorderBrush="#26385D" BorderThickness="1" CornerRadius="18" Padding="16">
+           <Grid>
+            <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+            <StackPanel Orientation="Horizontal"><Ellipse Width="8" Height="8" Fill="#3ED598" Margin="0,4,8,0"/><TextBlock Text="SCAN RESULT" FontSize="9.5" FontWeight="Bold" Foreground="#D5DFFF"/></StackPanel>
+            <StackPanel Grid.Row="1" VerticalAlignment="Center">
+             <TextBlock x:Name="VerdictText" Text="NOT SCANNED" FontSize="26" FontWeight="Bold"/>
+             <TextBlock x:Name="VerdictDetail" Text="A completed scan is required." Margin="0,8,0,0" FontSize="10.6" Foreground="#9AA7C8" TextWrapping="Wrap"/>
+            </StackPanel>
+            <StackPanel Grid.Row="2">
+             <Button x:Name="OpenReportButton" Style="{StaticResource SecondaryButton}" Content="OPEN PDF REPORT" IsEnabled="False" Click="OpenReportButton_Click"/>
+             <Button x:Name="OpenFolderButton" Style="{StaticResource GhostButton}" Content="OPEN REPORT FOLDER" IsEnabled="False" Margin="0,8,0,0" Click="OpenFolderButton_Click"/>
+            </StackPanel>
+           </Grid>
+          </Border>
          </Grid>
         </TabItem>
 
@@ -167,12 +270,15 @@
         </TabItem>
        </TabControl>
 
-       <Grid Grid.Row="6">
+       <Grid Grid.Row="8">
         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
         <CheckBox x:Name="ConsentCheckBox" Style="{StaticResource ConsentCheck}" VerticalAlignment="Center" Checked="ConsentCheckBox_Changed" Unchecked="ConsentCheckBox_Changed">
-         <TextBlock Text="I consent to a local read-only scan. “Not detected” is not proof that cheating never occurred." FontSize="9.5" Foreground="#9B8985" TextWrapping="Wrap"/>
+         <TextBlock Text="I consent to a local read-only scan. “Not detected” is not proof that cheating never occurred." FontSize="9.8" Foreground="#9AA7C8" TextWrapping="Wrap"/>
         </CheckBox>
-        <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="12,0,0,0"><Button x:Name="CancelButton" Style="{StaticResource GhostButton}" Content="CANCEL" IsEnabled="False" Width="86" Margin="0,0,8,0" Click="CancelButton_Click"/><Button x:Name="StartScanButton" Style="{StaticResource PrimaryButton}" Content="START SCAN" IsEnabled="False" Width="128" Click="StartScanButton_Click"/></StackPanel>
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="12,0,0,0">
+         <Button x:Name="CancelButton" Style="{StaticResource GhostButton}" Content="CANCEL" IsEnabled="False" Width="94" Margin="0,0,8,0" Click="CancelButton_Click"/>
+         <Button x:Name="StartScanButton" Style="{StaticResource PrimaryButton}" Content="START SCAN" IsEnabled="False" Width="138" Click="StartScanButton_Click"/>
+        </StackPanel>
        </Grid>
       </Grid>
      </Border>

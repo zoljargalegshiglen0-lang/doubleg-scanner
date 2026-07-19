@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.6.1
+- Removed all Mongolian text and bilingual labels from the generated PDF report.
+- PDF report is now English-only with cleaner professional terminology.
+- Scanner UI, detection logic, collectors, JSON evidence, and dashboard design are unchanged.
+
 ## 1.4.0
 - Added compact rounded custom-window UI and dark title bar.
 - Reduced default window size and removed unnecessary visual clutter.
