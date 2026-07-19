@@ -133,6 +133,37 @@ public static class RuleMatcher
     public static bool IsKnownHash(string? hash, RuleSet r) =>
         FindKnownCheat(hash, r) is not null ||
         (!string.IsNullOrWhiteSpace(hash) && r.KnownHashes.Contains(hash,StringComparer.OrdinalIgnoreCase));
+
+    public static KnownCheatNameEntry? FindKnownCheatName(string? value, RuleSet r)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        string normalizedValue = NormalizeName(value);
+        string fileStem = NormalizeName(Path.GetFileNameWithoutExtension(value));
+
+        foreach (KnownCheatNameEntry entry in r.KnownCheatNames)
+        {
+            IEnumerable<string> candidates = entry.Aliases.Prepend(entry.Name);
+            foreach (string candidate in candidates)
+            {
+                if (string.IsNullOrWhiteSpace(candidate)) continue;
+                string normalizedCandidate = NormalizeName(candidate);
+                if (normalizedCandidate.Length < 4) continue;
+
+                if (normalizedValue.Contains(normalizedCandidate, StringComparison.OrdinalIgnoreCase) ||
+                    fileStem.Equals(normalizedCandidate, StringComparison.OrdinalIgnoreCase))
+                    return entry;
+            }
+        }
+        return null;
+    }
+
+    public static bool IsBinary(string? path) =>
+        Path.GetExtension(path ?? "").ToLowerInvariant() is ".exe" or ".dll" or ".sys" or ".com" or ".scr" or ".msi";
+
+    public static string NormalizeName(string? value) =>
+        string.IsNullOrWhiteSpace(value)
+            ? ""
+            : new string(value.ToLowerInvariant().Where(char.IsLetterOrDigit).ToArray());
     public static bool IsKnownDomain(string? url, RuleSet r)
     {
         if (!Uri.TryCreate(url,UriKind.Absolute,out Uri? u)) return false;

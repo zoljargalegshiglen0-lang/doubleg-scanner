@@ -66,8 +66,8 @@ public sealed class BrowserCollector : IScanCollector
             while(await r.ReadAsync(t))
             {
                 count++;string url=S(r,0),title=S(r,1);long raw=L(r,2);string all=url+" "+title;
-                bool relevant=RuleMatcher.IsKnownDomain(url,rules)||RuleMatcher.ContainsHigh(all,rules)||
-                    (RuleMatcher.ContainsMedium(all,rules)&&url.Contains("cs2",StringComparison.OrdinalIgnoreCase));
+                bool relevant=RuleMatcher.IsKnownDomain(url,rules)||RuleMatcher.FindKnownCheatName(all,rules) is not null||
+                    RuleMatcher.ContainsHigh(all,rules)||(RuleMatcher.ContainsMedium(all,rules)&&url.Contains("cs2",StringComparison.OrdinalIgnoreCase));
                 if(!relevant)continue;
                 list.Add(new(){Kind=EvidenceKind.Browser,Source="Browser activity",Name=string.IsNullOrWhiteSpace(title)?"Browser visit":title,
                     Url=url,Timestamp=ChromiumTime(raw),Detail="Potentially relevant local visit. No cookies, passwords, or sessions were read.",
@@ -89,7 +89,8 @@ public sealed class BrowserCollector : IScanCollector
                 bool recent=timestamp is not null&&timestamp.Value>=DateTimeOffset.Now.AddDays(-recentDays);
                 bool executableOrArchive=RuleMatcher.IsExecutableOrArchive(selected);
                 string all=string.Join(" ",current,target,tab,site,referrer);
-                bool relevant=RuleMatcher.IsKnownDomain(tab,rules)||RuleMatcher.IsKnownDomain(site,rules)||RuleMatcher.ContainsHigh(all,rules)||
+                bool relevant=RuleMatcher.IsKnownDomain(tab,rules)||RuleMatcher.IsKnownDomain(site,rules)||
+                    RuleMatcher.FindKnownCheatName(all,rules) is not null||RuleMatcher.ContainsHigh(all,rules)||
                     (RuleMatcher.ContainsMedium(all,rules)&&executableOrArchive)||(recent&&executableOrArchive);
                 if(!relevant)continue;
                 list.Add(new(){Kind=EvidenceKind.Browser,Source="Browser activity",
@@ -113,7 +114,8 @@ public sealed class BrowserCollector : IScanCollector
         while(await r.ReadAsync(t))
         {
             count++;string url=S(r,0),title=S(r,1);long raw=L(r,2);
-            if(!RuleMatcher.IsKnownDomain(url,rules)&&!RuleMatcher.ContainsHigh(url+" "+title,rules))continue;
+            if(!RuleMatcher.IsKnownDomain(url,rules)&&RuleMatcher.FindKnownCheatName(url+" "+title,rules) is null&&
+                !RuleMatcher.ContainsHigh(url+" "+title,rules))continue;
             list.Add(new(){Kind=EvidenceKind.Browser,Source="Browser activity",Name=string.IsNullOrWhiteSpace(title)?"Firefox visit":title,
                 Url=url,Timestamp=raw>0?DateTimeOffset.FromUnixTimeMilliseconds(raw/1000):null,Detail="Potentially relevant Firefox history entry.",
                 Metadata=new(StringComparer.OrdinalIgnoreCase){["Browser"]=profile.Browser,["Profile"]=profile.Name,["RecordType"]="Visit"}});

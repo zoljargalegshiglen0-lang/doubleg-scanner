@@ -256,6 +256,7 @@ public sealed class FileArtifactCollector : IScanCollector
 
                     string combined = string.Join(" ", new[] { file }.Concat(archive.Indicators).Concat(staticResult.Indicators));
                     bool known = RuleMatcher.IsKnownHash(hash, context.Rules);
+                    bool namedCheat = RuleMatcher.FindKnownCheatName(combined, context.Rules) is not null;
                     bool highKeyword = RuleMatcher.ContainsHigh(combined, context.Rules);
                     bool mediumKeyword = RuleMatcher.ContainsMedium(combined, context.Rules);
                     bool unsignedUserBinary = isBinary && signature?.IsValid != true && RuleMatcher.IsUserWritable(file);
@@ -269,7 +270,7 @@ public sealed class FileArtifactCollector : IScanCollector
                     // correlation and Defender evaluate a file that was downloaded but never executed.
                     bool recentDownloadedCandidate = isDownload && isRecent && (isBinary || isArchive);
 
-                    bool relevant = known || highKeyword || strongStatic || strongArchive ||
+                    bool relevant = known || namedCheat || highKeyword || strongStatic || strongArchive ||
                                     recentDownloadedCandidate || recentDownloadedBinary || recentDownloadedPayloadArchive || recentOpaqueArchive ||
                                     (mediumKeyword && (unsignedUserBinary || archiveWithPayload));
                     if (!relevant) continue;

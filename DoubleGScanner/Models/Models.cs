@@ -14,10 +14,18 @@ public sealed class KnownCheatEntry
     public string SourceNote { get; set; } = "";
 }
 
+public sealed class KnownCheatNameEntry
+{
+    public string Name { get; set; } = "";
+    public string Family { get; set; } = "CS2 cheat";
+    public List<string> Aliases { get; set; } = new();
+}
+
 public sealed class RuleSet
 {
-    public string Version { get; set; } = "1.3.0";
+    public string Version { get; set; } = "1.4.0";
     public List<KnownCheatEntry> KnownCheats { get; set; } = new();
+    public List<KnownCheatNameEntry> KnownCheatNames { get; set; } = new();
     // Legacy exact hashes remain supported, but they cannot show a product/family name.
     public List<string> KnownHashes { get; set; } = new();
     public List<string> KnownDomains { get; set; } = new();

@@ -4,223 +4,481 @@ namespace DoubleGScanner.Services;
 
 public static class DetectionEngine
 {
-    public static IReadOnlyList<ScanFinding> Analyze(IReadOnlyList<EvidenceRecord> evidence,RuleSet rules)
+    public static IReadOnlyList<ScanFinding> Analyze(IReadOnlyList<EvidenceRecord> evidence, RuleSet rules)
     {
-        var findings=new List<ScanFinding>();
-        foreach(EvidenceRecord item in evidence)
+        var findings = new List<ScanFinding>();
+
+        foreach (EvidenceRecord item in evidence)
         {
-            if(item.Kind==EvidenceKind.Antivirus&&item.Metadata.TryGetValue("ThreatName",out string? defenderThreat)&&!string.IsNullOrWhiteSpace(defenderThreat))
+            if (TryAddDefenderFinding(item, findings)) continue;
+            if (TryAddExactHashFinding(item, rules, findings)) continue;
+
+            string combined = string.Join(" ", item.Name, item.Path, item.Url, item.Detail,
+                item.Metadata.GetValueOrDefault("ArchiveIndicators"),
+                item.Metadata.GetValueOrDefault("StaticIndicators"));
+
+            KnownCheatNameEntry? namedCheat = RuleMatcher.FindKnownCheatName(combined, rules);
+            if (namedCheat is not null)
+                AddNamedCheatFinding(item, namedCheat, findings);
+
+            AddGenericFindings(item, combined, rules, findings);
+        }
+
+        AddCorrelation(evidence, findings, rules);
+
+        return findings
+            .GroupBy(x => $"{x.RuleId}|{x.Path}|{x.DetectedCheatName}|{x.Timestamp:O}", StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.OrderByDescending(x => x.Score).First())
+            .OrderByDescending(x => x.Score)
+            .ThenByDescending(x => x.Timestamp)
+            .ToArray();
+    }
+
+    public static (ScanVerdict Verdict, int Risk) Verdict(
+        IReadOnlyList<ScanFinding> findings,
+        IReadOnlyList<ScanCoverage> coverage,
+        ScanMode mode)
+    {
+        int failed = coverage.Count(x => x.Status is CoverageStatus.Failed or CoverageStatus.Unavailable);
+        int partial = coverage.Count(x => x.Status == CoverageStatus.Partial);
+        int risk = Math.Min(200, findings.Sum(x => x.Score));
+
+        if (failed >= (mode == ScanMode.Quick ? 2 : 3) || failed + partial >= 5)
+            return (ScanVerdict.Incomplete, risk);
+
+        if (findings.Any(x => x.Severity == FindingSeverity.Critical && x.Score >= 80))
+            return (ScanVerdict.Detected, risk);
+
+        if (findings.Any(x => x.Severity == FindingSeverity.High) || risk >= 50)
+            return (ScanVerdict.Review, risk);
+
+        return (ScanVerdict.NotDetected, risk);
+    }
+
+    private static bool TryAddDefenderFinding(EvidenceRecord item, List<ScanFinding> findings)
+    {
+        if (item.Kind != EvidenceKind.Antivirus ||
+            !item.Metadata.TryGetValue("ThreatName", out string? threat) ||
+            string.IsNullOrWhiteSpace(threat)) return false;
+
+        findings.Add(new ScanFinding
+        {
+            RuleId = "DGS-DEFENDER-001",
+            Severity = FindingSeverity.Critical,
+            Score = 100,
+            Title = $"Microsoft Defender detected: {threat}",
+            Summary = "Microsoft Defender reported a threat during the read-only custom scan.",
+            EvidenceSource = item.Source,
+            Path = item.Path,
+            HashSha256 = item.HashSha256,
+            Timestamp = item.Timestamp,
+            DetectedCheatName = threat,
+            CheatFamily = "Microsoft Defender detection",
+            DetectionMethod = "Microsoft Defender custom scan (-DisableRemediation)",
+            Reasons = new[] { "Antivirus engine detection", "DoubleG Scanner did not delete or quarantine the file" }
+        });
+        return true;
+    }
+
+    private static bool TryAddExactHashFinding(EvidenceRecord item, RuleSet rules, List<ScanFinding> findings)
+    {
+        KnownCheatEntry? exact = RuleMatcher.FindKnownCheat(item.HashSha256, rules);
+        if (exact is not null)
+        {
+            string displayName = string.IsNullOrWhiteSpace(exact.Name) ? "Named cheat signature" : exact.Name;
+            findings.Add(new ScanFinding
             {
-                findings.Add(new ScanFinding
+                RuleId = "DGS-HASH-001",
+                Severity = FindingSeverity.Critical,
+                Score = 100,
+                Title = $"Detected cheat: {displayName}",
+                Summary = "The SHA-256 hash exactly matched a named entry in the DoubleG detection database.",
+                EvidenceSource = item.Source,
+                Path = item.Path ?? item.Url,
+                HashSha256 = item.HashSha256,
+                Timestamp = item.Timestamp,
+                DetectedCheatName = displayName,
+                CheatFamily = string.IsNullOrWhiteSpace(exact.Family) ? null : exact.Family,
+                DetectionMethod = "Exact SHA-256 signature",
+                Reasons = new[]
                 {
-                    RuleId="DGS-DEFENDER-001",
-                    Severity=FindingSeverity.Critical,
-                    Score=100,
-                    Title=$"Microsoft Defender detected: {defenderThreat}",
-                    Summary="Microsoft Defender Antivirus reported this threat during a custom scan with remediation disabled.",
-                    EvidenceSource=item.Source,
-                    Path=item.Path,
-                    HashSha256=item.HashSha256,
-                    Timestamp=item.Timestamp,
-                    DetectedCheatName=defenderThreat,
-                    CheatFamily="Microsoft Defender Antivirus detection",
-                    DetectionMethod="Microsoft Defender custom scan (-DisableRemediation)",
-                    Reasons=new[]{"Antivirus engine detection","No remediation was applied by DoubleG Scanner"}
-                });
-                continue;
-            }
-
-            KnownCheatEntry? knownCheat = RuleMatcher.FindKnownCheat(item.HashSha256, rules);
-            if(knownCheat is not null)
-            {
-                string displayName = string.IsNullOrWhiteSpace(knownCheat.Name) ? "Named cheat signature" : knownCheat.Name;
-                findings.Add(new ScanFinding
-                {
-                    RuleId = "DGS-HASH-001",
-                    Severity = FindingSeverity.Critical,
-                    Score = 100,
-                    Title = $"Detected cheat: {displayName}",
-                    Summary = "The artifact SHA-256 exactly matched a named entry in the local DoubleG detection database.",
-                    EvidenceSource = item.Source,
-                    Path = item.Path ?? item.Url,
-                    HashSha256 = item.HashSha256,
-                    Timestamp = item.Timestamp,
-                    DetectedCheatName = displayName,
-                    CheatFamily = string.IsNullOrWhiteSpace(knownCheat.Family) ? null : knownCheat.Family,
-                    DetectionMethod = "Exact SHA-256 signature",
-                    Reasons = new[]
-                    {
-                        "Exact SHA-256 match",
-                        string.IsNullOrWhiteSpace(knownCheat.SourceNote)
-                            ? "Matched a locally maintained named detection entry"
-                            : knownCheat.SourceNote
-                    }
-                });
-                continue;
-            }
-            if(RuleMatcher.IsKnownHash(item.HashSha256,rules))
-            {
-                findings.Add(F("DGS-HASH-001-LEGACY",FindingSeverity.Critical,100,"Known cheat hash matched",
-                    "The SHA-256 hash exactly matched a legacy unnamed entry in the local detection-rule dataset.",item,"Exact legacy hash match"));
-                continue;
-            }
-            string combined=string.Join(" ",item.Name,item.Path,item.Url,item.Detail);
-            bool high=RuleMatcher.ContainsHigh(combined,rules),medium=RuleMatcher.ContainsMedium(combined,rules);
-            bool user=RuleMatcher.IsUserWritable(item.Path),trusted=RuleMatcher.IsTrustedPublisher(item.Publisher,rules);
-
-            if(item.Kind==EvidenceKind.Module&&item.Metadata.TryGetValue("ProcessName",out string? pn)&&pn.Equals("cs2.exe",StringComparison.OrdinalIgnoreCase))
-            {
-                if(item.IsSignatureValid==false&&user)findings.Add(F("DGS-MODULE-002",FindingSeverity.Critical,85,
-                    "Unsigned user-writable module loaded by CS2","A module loaded inside CS2 came from a user-writable location and lacked a valid signature.",
-                    item,"Loaded by cs2.exe","User-writable path","Signature invalid or absent"));
-                else if(high&&!trusted)findings.Add(F("DGS-MODULE-003",FindingSeverity.High,70,
-                    "Potentially suspicious CS2 module","A CS2 module matched high-risk naming rules and was not associated with a trusted publisher.",
-                    item,"Loaded by cs2.exe","High-risk keyword"));
-            }
-            if(item.Kind==EvidenceKind.Process&&high&&user&&item.IsSignatureValid!=true)
-                findings.Add(F("DGS-PROC-004",FindingSeverity.High,58,"Suspicious unsigned process",
-                    "A running executable matched high-risk terms, ran from a user-writable location, and lacked a valid signature.",
-                    item,"Running process","High-risk term","Unsigned user-writable executable"));
-
-            if(item.Kind==EvidenceKind.Browser)
-            {
-                if(RuleMatcher.IsKnownDomain(item.Url,rules))findings.Add(F("DGS-WEB-005",FindingSeverity.Critical,90,
-                    "Known cheat distribution domain","A local browser record matched a domain in the detection-rule dataset.",item,"Known-domain match"));
-                else if(high&&(RuleMatcher.IsExecutableOrArchive(item.Path)||item.Metadata.GetValueOrDefault("RecordType")=="Download"))
-                    findings.Add(F("DGS-WEB-006",FindingSeverity.Warning,35,"Potential cheat-related download record",
-                        "A browser download matched high-risk terms. Browser history alone is supporting evidence, not proof.",item,"High-risk term in download metadata"));
-            }
-            if(item.Kind==EvidenceKind.Execution&&high)
-            {
-                bool missing=!string.IsNullOrWhiteSpace(item.Path)&&!File.Exists(item.Path);
-                findings.Add(F("DGS-EXEC-007",FindingSeverity.Warning,missing?38:28,"Potentially relevant execution trace",
-                    "Windows retained an execution-related artifact matching a high-risk rule.",item,$"Artifact source: {item.Source}",missing?"Referenced file is missing":"Artifact remains"));
-            }
-            if(item.Kind==EvidenceKind.DeletedFile&&high&&RuleMatcher.IsExecutableOrArchive(item.Path))
-                findings.Add(F("DGS-DEL-008",FindingSeverity.High,55,"Deleted executable/archive trace",
-                    "Recycle Bin metadata referenced a deleted executable or archive matching high-risk rules.",item,"Deleted-file metadata","Executable/archive extension"));
-            bool isDriver=item.Kind==EvidenceKind.FileArtifact&&item.Metadata.GetValueOrDefault("RecordType")=="Driver";
-            if(isDriver&&item.IsSignatureValid==false&&user)
-                findings.Add(F("DGS-DRV-009",FindingSeverity.Critical,80,"Unsigned driver from a user-writable location",
-                    "A registered kernel/file-system driver resolved to a user-writable path and lacked a valid signature.",item,"Registered driver","User-writable path","Invalid or absent signature"));
-            else if(item.Kind==EvidenceKind.FileArtifact&&high&&user&&item.IsSignatureValid!=true)
-                findings.Add(F("DGS-FILE-010",FindingSeverity.Warning,38,"Potentially suspicious local file",
-                    "A recent file in a user-writable high-risk location matched metadata rules and lacked a valid trusted signature.",item,"Recent file artifact"));
-
-            if(item.Kind==EvidenceKind.FileArtifact)
-            {
-                int staticScore=MetaInt(item,"StaticRiskScore");
-                int archiveStatic=MetaInt(item,"ArchiveStaticScore");
-                int archiveExecutables=MetaInt(item,"ArchiveExecutableCount");
-                bool recentDownload=item.Metadata.GetValueOrDefault("RecordType")=="RecentDownloadArtifact";
-                bool archiveUnreadable=MetaBool(item,"ArchiveUnreadable");
-                string extension=item.Metadata.GetValueOrDefault("Extension")??Path.GetExtension(item.Path??"");
-                bool binary=extension.Equals(".exe",StringComparison.OrdinalIgnoreCase)||extension.Equals(".dll",StringComparison.OrdinalIgnoreCase)||
-                    extension.Equals(".sys",StringComparison.OrdinalIgnoreCase)||extension.Equals(".com",StringComparison.OrdinalIgnoreCase)||
-                    extension.Equals(".scr",StringComparison.OrdinalIgnoreCase)||extension.Equals(".msi",StringComparison.OrdinalIgnoreCase);
-
-                if(staticScore>=70)
-                    findings.Add(F("DGS-STATIC-014",FindingSeverity.High,72,"Strong CS2 cheat-like static indicators",
-                        "The downloaded/local binary contained a strong combination of CS2 references, cheat-related strings, and process/memory manipulation APIs.",
-                        item,$"Static score: {staticScore}/100",item.Metadata.GetValueOrDefault("StaticIndicators")??"Static indicators"));
-                else if(staticScore>=45)
-                    findings.Add(F("DGS-STATIC-015",FindingSeverity.Warning,42,"Suspicious static binary indicators",
-                        "The binary contained multiple static indicators commonly associated with loaders, injectors, or CS2 modification tools.",
-                        item,$"Static score: {staticScore}/100",item.Metadata.GetValueOrDefault("StaticIndicators")??"Static indicators"));
-
-                if(archiveExecutables>0&&archiveStatic>=55)
-                    findings.Add(F("DGS-ARCHIVE-016",FindingSeverity.High,68,"Archive contains strongly suspicious executable payload",
-                        "A recent archive contained executable/script payloads with strong CS2 cheat-like static indicators.",
-                        item,$"Executable/script entries: {archiveExecutables}",$"Embedded static score: {archiveStatic}/100"));
-                else if(recentDownload&&archiveExecutables>0)
-                    findings.Add(F("DGS-ARCHIVE-017",FindingSeverity.High,55,"Recent downloaded archive contains executable payload",
-                        "A recently downloaded archive contains executable or script payloads. This is supporting evidence and requires review.",
-                        item,$"Executable/script entries: {archiveExecutables}"));
-                else if(recentDownload&&archiveUnreadable)
-                    findings.Add(F("DGS-ARCHIVE-018",FindingSeverity.High,55,"Recent downloaded archive could not be fully inspected",
-                        "The archive is encrypted, unsupported, damaged, or otherwise unavailable for built-in read-only inspection. Microsoft Defender results should be checked.",
-                        item,"Archive content unavailable"));
-
-                if(recentDownload&&binary&&item.IsSignatureValid!=true)
-                    findings.Add(F("DGS-DOWNLOAD-019",FindingSeverity.High,55,"Recent unsigned executable download",
-                        "A recently downloaded executable has no valid trusted signature. This alone is not proof of cheating.",
-                        item,"Recent download","Invalid or absent signature"));
-            }
-            if(item.Kind==EvidenceKind.Network&&high)
-                findings.Add(F("DGS-NET-011",FindingSeverity.Warning,25,"Suspiciously named process has a live connection",
-                    "A process matching a high-risk naming rule had an active TCP connection during the scan.",item,"Live network connection"));
-            if(medium&&(item.Kind==EvidenceKind.Process||item.Kind==EvidenceKind.FileArtifact)&&user&&item.IsSignatureValid==false)
-                findings.Add(F("DGS-HEUR-012",FindingSeverity.Warning,18,"Low-confidence unsigned tool indicator",
-                    "A user-writable unsigned executable matched a medium-risk term. Manual review is required.",item,"Medium-risk term"));
+                    "Exact SHA-256 match",
+                    string.IsNullOrWhiteSpace(exact.SourceNote) ? "Verified local signature entry" : exact.SourceNote
+                }
+            });
+            return true;
         }
-        AddCorrelation(evidence,findings,rules);
-        return findings.GroupBy(x=>$"{x.RuleId}|{x.Path}|{x.Timestamp:O}",StringComparer.OrdinalIgnoreCase)
-            .Select(g=>g.OrderByDescending(x=>x.Score).First()).OrderByDescending(x=>x.Score).ThenByDescending(x=>x.Timestamp).ToArray();
+
+        if (!RuleMatcher.IsKnownHash(item.HashSha256, rules)) return false;
+        findings.Add(F("DGS-HASH-LEGACY", FindingSeverity.Critical, 100,
+            "Known cheat hash matched",
+            "The SHA-256 hash matched a legacy unnamed detection entry.",
+            item, "Exact SHA-256 match"));
+        return true;
     }
 
-    public static (ScanVerdict Verdict,int Risk) Verdict(IReadOnlyList<ScanFinding> f,IReadOnlyList<ScanCoverage> c,ScanMode mode)
+    private static void AddNamedCheatFinding(
+        EvidenceRecord item,
+        KnownCheatNameEntry named,
+        List<ScanFinding> findings)
     {
-        int failed=c.Count(x=>x.Status is CoverageStatus.Failed or CoverageStatus.Unavailable);
-        int partial=c.Count(x=>x.Status==CoverageStatus.Partial);
-        if(failed>=(mode==ScanMode.Quick?2:3)||failed+partial>=5)return(ScanVerdict.Incomplete,Math.Min(200,f.Sum(x=>x.Score)));
-        int risk=Math.Min(200,f.Sum(x=>x.Score));
-        if(f.Any(x=>x.Severity==FindingSeverity.Critical&&x.Score>=80))return(ScanVerdict.Detected,risk);
-        if(f.Any(x=>(int)x.Severity>=(int)FindingSeverity.High)||risk>=55)return(ScanVerdict.Review,risk);
-        return(ScanVerdict.NotDetected,risk);
+        string artifact = item.Path ?? item.Url ?? item.Name;
+        bool executableOrArchive = RuleMatcher.IsExecutableOrArchive(artifact);
+        bool binary = RuleMatcher.IsBinary(artifact);
+        bool unsigned = binary && item.IsSignatureValid != true;
+        bool userWritable = RuleMatcher.IsUserWritable(item.Path);
+        int staticScore = MetaInt(item, "StaticRiskScore");
+        int archiveStatic = MetaInt(item, "ArchiveStaticScore");
+        int archiveExecutables = MetaInt(item, "ArchiveExecutableCount");
+        bool recentDownload = item.Metadata.GetValueOrDefault("RecordType") == "RecentDownloadArtifact";
+        bool browserDownload = item.Kind == EvidenceKind.Browser && item.Metadata.GetValueOrDefault("RecordType") == "Download";
+        bool cs2Module = item.Kind == EvidenceKind.Module &&
+                         string.Equals(item.Metadata.GetValueOrDefault("ProcessName"), "cs2.exe", StringComparison.OrdinalIgnoreCase);
+        bool technicalSupport = staticScore >= 30 || archiveStatic >= 25 || archiveExecutables > 0 || unsigned;
+
+        if (cs2Module)
+        {
+            findings.Add(Named("DGS-NAMED-MODULE", FindingSeverity.Critical, 94,
+                $"Named cheat module detected: {named.Name}",
+                "A module loaded by CS2 matched a known cheat-family name.", item, named,
+                "Known cheat name in a CS2-loaded module", "Loaded by cs2.exe"));
+            return;
+        }
+
+        if (item.Kind == EvidenceKind.Process && executableOrArchive && userWritable && item.IsSignatureValid != true)
+        {
+            findings.Add(Named("DGS-NAMED-PROCESS", FindingSeverity.Critical, 88,
+                $"Named cheat process detected: {named.Name}",
+                "A running user-writable unsigned executable matched a known cheat-family name.", item, named,
+                "Known cheat name + running unsigned executable", "Running process", "User-writable path"));
+            return;
+        }
+
+        if (item.Kind == EvidenceKind.FileArtifact && recentDownload && executableOrArchive && technicalSupport)
+        {
+            findings.Add(Named("DGS-NAMED-DOWNLOAD", FindingSeverity.Critical, 86,
+                $"Likely cheat artifact detected: {named.Name}",
+                "A recent downloaded executable/archive matched a known cheat-family name and also had supporting technical indicators.",
+                item, named, "Known cheat name + downloaded artifact + technical indicators",
+                unsigned ? "Unsigned executable" : "Executable/archive payload",
+                staticScore > 0 ? $"Static score: {staticScore}/100" : $"Archive executable entries: {archiveExecutables}"));
+            return;
+        }
+
+        if (item.Kind == EvidenceKind.DeletedFile && executableOrArchive)
+        {
+            findings.Add(Named("DGS-NAMED-DELETED", FindingSeverity.High, 72,
+                $"Deleted named cheat artifact: {named.Name}",
+                "Deleted-file metadata referenced an executable/archive matching a known cheat-family name.",
+                item, named, "Known cheat name in deleted-file metadata", "Manual verification required"));
+            return;
+        }
+
+        if (item.Kind == EvidenceKind.Execution && executableOrArchive)
+        {
+            findings.Add(Named("DGS-NAMED-EXECUTION", FindingSeverity.High, 70,
+                $"Named cheat execution trace: {named.Name}",
+                "Windows execution artifacts referenced a known cheat-family name.",
+                item, named, "Known cheat name in execution trace", "Manual verification required"));
+            return;
+        }
+
+        if (item.Kind == EvidenceKind.FileArtifact && executableOrArchive)
+        {
+            findings.Add(Named("DGS-NAMED-FILE", technicalSupport ? FindingSeverity.High : FindingSeverity.Warning,
+                technicalSupport ? 66 : 38,
+                $"Possible named cheat artifact: {named.Name}",
+                technicalSupport
+                    ? "A local executable/archive matched a known cheat-family name and had supporting technical indicators."
+                    : "A local filename matched a known cheat-family name, but the evidence is not sufficient for a conclusive detection.",
+                item, named,
+                technicalSupport ? "Known cheat name + technical indicators" : "Known cheat name match only",
+                "Manual verification required"));
+            return;
+        }
+
+        if (browserDownload)
+        {
+            findings.Add(Named("DGS-NAMED-WEB", FindingSeverity.High, 56,
+                $"Named cheat download record: {named.Name}",
+                "A browser download record matched a known cheat-family name. Browser history alone is not proof.",
+                item, named, "Known cheat name in browser download", "Manual verification required"));
+            return;
+        }
+
+        findings.Add(Named("DGS-NAMED-LOW", FindingSeverity.Warning, 28,
+            $"Known cheat-family name found: {named.Name}",
+            "A local evidence record matched a known cheat-family name. Additional evidence is required.",
+            item, named, "Name/alias match", "Low-confidence naming evidence"));
     }
 
-    private static void AddCorrelation(IReadOnlyList<EvidenceRecord> evidence,List<ScanFinding> findings,RuleSet rules)
+    private static void AddGenericFindings(
+        EvidenceRecord item,
+        string combined,
+        RuleSet rules,
+        List<ScanFinding> findings)
     {
-        var relevant=evidence.Where(x=>RuleMatcher.ContainsHigh(string.Join(" ",x.Name,x.Path,x.Url,x.Detail),rules))
-            .Where(x=>!string.IsNullOrWhiteSpace(x.Name)).GroupBy(x=>Normalize(x.Name),StringComparer.OrdinalIgnoreCase);
-        foreach(var g in relevant)
+        bool high = RuleMatcher.ContainsHigh(combined, rules);
+        bool medium = RuleMatcher.ContainsMedium(combined, rules);
+        bool userWritable = RuleMatcher.IsUserWritable(item.Path);
+        bool trusted = RuleMatcher.IsTrustedPublisher(item.Publisher, rules);
+
+        if (item.Kind == EvidenceKind.Module &&
+            string.Equals(item.Metadata.GetValueOrDefault("ProcessName"), "cs2.exe", StringComparison.OrdinalIgnoreCase))
         {
-            EvidenceKind[] kinds=g.Select(x=>x.Kind).Distinct().ToArray();
-            if(kinds.Contains(EvidenceKind.Browser)&&kinds.Contains(EvidenceKind.Execution)&&
-               (kinds.Contains(EvidenceKind.DeletedFile)||kinds.Contains(EvidenceKind.FileArtifact)))
+            if (item.IsSignatureValid == false && userWritable)
+                findings.Add(F("DGS-MODULE-002", FindingSeverity.Critical, 85,
+                    "Unsigned user-writable module loaded by CS2",
+                    "A module loaded inside CS2 came from a user-writable location and lacked a valid signature.",
+                    item, "Loaded by cs2.exe", "User-writable path", "Invalid or absent signature"));
+            else if (high && !trusted)
+                findings.Add(F("DGS-MODULE-003", FindingSeverity.High, 68,
+                    "Potentially suspicious CS2 module",
+                    "A CS2 module matched high-risk terms and was not associated with a trusted publisher.",
+                    item, "Loaded by cs2.exe", "High-risk term"));
+        }
+
+        if (item.Kind == EvidenceKind.Process && high && userWritable && item.IsSignatureValid != true)
+            findings.Add(F("DGS-PROC-004", FindingSeverity.High, 55,
+                "Suspicious unsigned process",
+                "A running executable matched high-risk terms and lacked a valid signature.",
+                item, "Running process", "High-risk term", "Unsigned user-writable executable"));
+
+        if (item.Kind == EvidenceKind.Browser)
+        {
+            if (RuleMatcher.IsKnownDomain(item.Url, rules))
+                findings.Add(F("DGS-WEB-005", FindingSeverity.Critical, 90,
+                    "Known cheat distribution domain",
+                    "A local browser record matched a domain in the detection dataset.", item, "Known-domain match"));
+            else if (high && (RuleMatcher.IsExecutableOrArchive(item.Path) || item.Metadata.GetValueOrDefault("RecordType") == "Download"))
+                findings.Add(F("DGS-WEB-006", FindingSeverity.Warning, 28,
+                    "Potential cheat-related download record",
+                    "A browser download matched high-risk terms. Browser history alone is supporting evidence.",
+                    item, "High-risk term in download metadata"));
+        }
+
+        if (item.Kind == EvidenceKind.Execution && high)
+        {
+            bool missing = !string.IsNullOrWhiteSpace(item.Path) && !File.Exists(item.Path);
+            findings.Add(F("DGS-EXEC-007", FindingSeverity.Warning, missing ? 35 : 25,
+                "Potentially relevant execution trace",
+                "Windows retained an execution artifact matching a high-risk rule.",
+                item, $"Artifact source: {item.Source}", missing ? "Referenced file is missing" : "Artifact remains"));
+        }
+
+        if (item.Kind == EvidenceKind.DeletedFile && high && RuleMatcher.IsExecutableOrArchive(item.Path))
+            findings.Add(F("DGS-DEL-008", FindingSeverity.High, 52,
+                "Deleted executable/archive trace",
+                "Recycle Bin metadata referenced a deleted executable/archive matching high-risk terms.",
+                item, "Deleted-file metadata", "Executable/archive extension"));
+
+        bool isDriver = item.Kind == EvidenceKind.FileArtifact && item.Metadata.GetValueOrDefault("RecordType") == "Driver";
+        if (isDriver && item.IsSignatureValid == false && userWritable)
+            findings.Add(F("DGS-DRV-009", FindingSeverity.Critical, 80,
+                "Unsigned driver from a user-writable location",
+                "A registered driver resolved to a user-writable path and lacked a valid signature.",
+                item, "Registered driver", "User-writable path", "Invalid or absent signature"));
+        else if (item.Kind == EvidenceKind.FileArtifact && high && userWritable && item.IsSignatureValid != true)
+            findings.Add(F("DGS-FILE-010", FindingSeverity.Warning, 27,
+                "Potentially suspicious local file",
+                "A recent local file matched high-risk metadata and lacked a valid trusted signature.",
+                item, "High-risk metadata", "Not conclusive"));
+
+        if (item.Kind == EvidenceKind.FileArtifact)
+        {
+            int staticScore = MetaInt(item, "StaticRiskScore");
+            int archiveStatic = MetaInt(item, "ArchiveStaticScore");
+            int archiveExecutables = MetaInt(item, "ArchiveExecutableCount");
+            bool recentDownload = item.Metadata.GetValueOrDefault("RecordType") == "RecentDownloadArtifact";
+            bool archiveUnreadable = MetaBool(item, "ArchiveUnreadable");
+            string extension = item.Metadata.GetValueOrDefault("Extension") ?? Path.GetExtension(item.Path ?? "");
+            bool binary = extension.Equals(".exe", StringComparison.OrdinalIgnoreCase) ||
+                          extension.Equals(".dll", StringComparison.OrdinalIgnoreCase) ||
+                          extension.Equals(".sys", StringComparison.OrdinalIgnoreCase) ||
+                          extension.Equals(".com", StringComparison.OrdinalIgnoreCase) ||
+                          extension.Equals(".scr", StringComparison.OrdinalIgnoreCase) ||
+                          extension.Equals(".msi", StringComparison.OrdinalIgnoreCase);
+
+            if (staticScore >= 70)
+                findings.Add(F("DGS-STATIC-014", FindingSeverity.High, 66,
+                    "Strong CS2 cheat-like static indicators",
+                    "The binary contained a strong combination of CS2 references and process/memory manipulation indicators.",
+                    item, $"Static score: {staticScore}/100", item.Metadata.GetValueOrDefault("StaticIndicators") ?? "Static indicators"));
+            else if (staticScore >= 45)
+                findings.Add(F("DGS-STATIC-015", FindingSeverity.Warning, 38,
+                    "Suspicious static binary indicators",
+                    "The binary contained several static indicators associated with loaders, injectors, or CS2 modification tools.",
+                    item, $"Static score: {staticScore}/100", item.Metadata.GetValueOrDefault("StaticIndicators") ?? "Static indicators"));
+
+            if (archiveExecutables > 0 && archiveStatic >= 55)
+                findings.Add(F("DGS-ARCHIVE-016", FindingSeverity.High, 60,
+                    "Archive contains suspicious executable payload",
+                    "A recent archive contained executable/script payloads with strong static indicators.",
+                    item, $"Executable/script entries: {archiveExecutables}", $"Embedded static score: {archiveStatic}/100"));
+            else if (recentDownload && archiveExecutables > 0)
+                findings.Add(F("DGS-ARCHIVE-017", FindingSeverity.Warning, 28,
+                    "Downloaded archive contains executable payload",
+                    "A recent archive contains executable/script payloads. This is common for installers and is not proof of cheating.",
+                    item, $"Executable/script entries: {archiveExecutables}"));
+            else if (recentDownload && archiveUnreadable)
+                findings.Add(F("DGS-ARCHIVE-018", FindingSeverity.Warning, 22,
+                    "Downloaded archive could not be fully inspected",
+                    "The archive is encrypted, unsupported, or damaged. Manual review may be required.",
+                    item, "Archive content unavailable"));
+
+            if (recentDownload && binary && item.IsSignatureValid != true && staticScore < 45 && !high)
+                findings.Add(F("DGS-DOWNLOAD-019", FindingSeverity.Warning, 16,
+                    "Unsigned recent executable (not classified as cheat)",
+                    "A recent executable lacks a valid signature. This is common for small utilities and is not proof of cheating.",
+                    item, "Recent download", "Invalid or absent signature"));
+        }
+
+        if (item.Kind == EvidenceKind.Network && high)
+            findings.Add(F("DGS-NET-011", FindingSeverity.Warning, 22,
+                "Suspiciously named process has a live connection",
+                "A process matching a high-risk term had an active TCP connection.", item, "Live network connection"));
+
+        if (medium && (item.Kind == EvidenceKind.Process || item.Kind == EvidenceKind.FileArtifact) &&
+            userWritable && item.IsSignatureValid == false)
+            findings.Add(F("DGS-HEUR-012", FindingSeverity.Warning, 12,
+                "Low-confidence unsigned tool indicator",
+                "An unsigned user-writable executable matched a generic loader/injector term.",
+                item, "Generic medium-risk term", "Manual review only"));
+    }
+
+    private static void AddCorrelation(
+        IReadOnlyList<EvidenceRecord> evidence,
+        List<ScanFinding> findings,
+        RuleSet rules)
+    {
+        var namedGroups = evidence
+            .Select(x => new { Evidence = x, Match = RuleMatcher.FindKnownCheatName(
+                string.Join(" ", x.Name, x.Path, x.Url, x.Detail), rules) })
+            .Where(x => x.Match is not null)
+            .GroupBy(x => x.Match!.Name, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var group in namedGroups)
+        {
+            EvidenceKind[] kinds = group.Select(x => x.Evidence.Kind).Distinct().ToArray();
+            bool browser = kinds.Contains(EvidenceKind.Browser);
+            bool local = kinds.Contains(EvidenceKind.FileArtifact) || kinds.Contains(EvidenceKind.DeletedFile);
+            bool execution = kinds.Contains(EvidenceKind.Execution) || kinds.Contains(EvidenceKind.Process) || kinds.Contains(EvidenceKind.Module);
+            if (!browser || !local) continue;
+
+            EvidenceRecord primary = group.Select(x => x.Evidence).OrderByDescending(x => x.Timestamp).First();
+            KnownCheatNameEntry match = group.First().Match!;
+            int score = execution ? 94 : 88;
+            findings.Add(Named("DGS-NAMED-CORR", FindingSeverity.Critical, score,
+                $"Correlated named cheat evidence: {match.Name}",
+                execution
+                    ? "The same known cheat-family name appeared in browser, local-file, and execution/process evidence."
+                    : "The same known cheat-family name appeared independently in browser download and local-file evidence.",
+                primary, match, "Independent named-evidence correlation", string.Join(", ", kinds)));
+        }
+
+        var highRiskGroups = evidence
+            .Where(x => RuleMatcher.ContainsHigh(string.Join(" ", x.Name, x.Path, x.Url, x.Detail), rules))
+            .Where(x => !string.IsNullOrWhiteSpace(x.Name))
+            .GroupBy(x => Normalize(x.Name), StringComparer.OrdinalIgnoreCase);
+
+        foreach (var group in highRiskGroups)
+        {
+            EvidenceKind[] kinds = group.Select(x => x.Kind).Distinct().ToArray();
+            if (kinds.Contains(EvidenceKind.Browser) && kinds.Contains(EvidenceKind.Execution) &&
+                (kinds.Contains(EvidenceKind.DeletedFile) || kinds.Contains(EvidenceKind.FileArtifact)))
             {
-                EvidenceRecord primary=g.OrderByDescending(x=>x.Timestamp).First();
-                findings.Add(F("DGS-CORR-013",FindingSeverity.Critical,82,"Correlated download, execution, and file trace",
-                    "The same high-risk name appeared in independent browser, execution, and file/deletion sources.",
-                    primary,"Independent evidence correlation",string.Join(", ",kinds)));
+                EvidenceRecord primary = group.OrderByDescending(x => x.Timestamp).First();
+                findings.Add(F("DGS-CORR-013", FindingSeverity.Critical, 82,
+                    "Correlated download, execution, and file trace",
+                    "The same high-risk artifact appeared in independent browser, execution, and file/deletion sources.",
+                    primary, "Independent evidence correlation", string.Join(", ", kinds)));
             }
         }
 
-        var downloadGroups=evidence
-            .Where(x=>(x.Kind==EvidenceKind.Browser&&x.Metadata.GetValueOrDefault("RecordType")=="Download")||
-                      (x.Kind==EvidenceKind.FileArtifact&&x.Metadata.GetValueOrDefault("RecordType")=="RecentDownloadArtifact"))
-            .Where(x=>!string.IsNullOrWhiteSpace(x.Name))
-            .GroupBy(x=>Normalize(x.Name),StringComparer.OrdinalIgnoreCase)
-            .Where(g=>!string.IsNullOrWhiteSpace(g.Key));
+        var downloads = evidence
+            .Where(x => (x.Kind == EvidenceKind.Browser && x.Metadata.GetValueOrDefault("RecordType") == "Download") ||
+                        (x.Kind == EvidenceKind.FileArtifact && x.Metadata.GetValueOrDefault("RecordType") == "RecentDownloadArtifact"))
+            .Where(x => !string.IsNullOrWhiteSpace(x.Name))
+            .GroupBy(x => Normalize(x.Name), StringComparer.OrdinalIgnoreCase)
+            .Where(x => !string.IsNullOrWhiteSpace(x.Key));
 
-        foreach(var group in downloadGroups)
+        foreach (var group in downloads)
         {
-            EvidenceRecord? browser=group.FirstOrDefault(x=>x.Kind==EvidenceKind.Browser);
-            EvidenceRecord? file=group.FirstOrDefault(x=>x.Kind==EvidenceKind.FileArtifact);
-            if(browser is null||file is null)continue;
+            EvidenceRecord? browser = group.FirstOrDefault(x => x.Kind == EvidenceKind.Browser);
+            EvidenceRecord? file = group.FirstOrDefault(x => x.Kind == EvidenceKind.FileArtifact);
+            if (browser is null || file is null) continue;
 
-            int staticScore=MetaInt(file,"StaticRiskScore");
-            int archiveStatic=MetaInt(file,"ArchiveStaticScore");
-            int archiveExecutables=MetaInt(file,"ArchiveExecutableCount");
-            bool archiveUnreadable=MetaBool(file,"ArchiveUnreadable");
-            bool unsigned=file.IsSignatureValid!=true;
-            bool strong=staticScore>=45||archiveStatic>=40;
-            bool payload=archiveExecutables>0||RuleMatcher.IsExecutableOrArchive(file.Path);
-            if(!payload&&!strong)continue;
+            int staticScore = MetaInt(file, "StaticRiskScore");
+            int archiveStatic = MetaInt(file, "ArchiveStaticScore");
+            int archiveExecutables = MetaInt(file, "ArchiveExecutableCount");
+            bool strong = staticScore >= 45 || archiveStatic >= 40;
+            bool payload = archiveExecutables > 0 || RuleMatcher.IsExecutableOrArchive(file.Path);
+            if (!payload && !strong) continue;
 
-            FindingSeverity severity=FindingSeverity.High;
-            int score=strong?70:58;
-            findings.Add(F("DGS-CORR-020",severity,score,"Correlated browser download and local executable/archive",
-                "The same recent item appears in browser download history and as a local executable/archive artifact. The file was not required to be executed for this correlation.",
-                file,"Independent browser + local file correlation",
-                strong?"Strong embedded/static indicators":"Executable/archive payload",
-                unsigned?"No valid trusted signature":"Signature available",
-                archiveUnreadable?"Archive not fully inspectable":"Archive/file inspected"));
+            findings.Add(F("DGS-CORR-020", strong ? FindingSeverity.High : FindingSeverity.Warning,
+                strong ? 58 : 30,
+                "Correlated browser download and local file",
+                strong
+                    ? "The same download exists locally and has supporting static indicators."
+                    : "The same recent executable/archive appears in browser history and on disk; this alone is not proof of cheating.",
+                file, "Browser + local-file correlation",
+                strong ? "Supporting static indicators" : "Generic executable/archive payload"));
         }
     }
-    private static int MetaInt(EvidenceRecord item,string key)=>item.Metadata.TryGetValue(key,out string? value)&&int.TryParse(value,out int parsed)?parsed:0;
-    private static bool MetaBool(EvidenceRecord item,string key)=>item.Metadata.TryGetValue(key,out string? value)&&bool.TryParse(value,out bool parsed)&&parsed;
-    private static string Normalize(string name)=>new string(Path.GetFileNameWithoutExtension(name).ToLowerInvariant().Where(char.IsLetterOrDigit).ToArray());
-    private static ScanFinding F(string id,FindingSeverity s,int score,string title,string summary,EvidenceRecord e,params string[] reasons)=>new()
-    {RuleId=id,Severity=s,Score=score,Title=title,Summary=summary,EvidenceSource=e.Source,Path=e.Path??e.Url,HashSha256=e.HashSha256,Timestamp=e.Timestamp,Reasons=reasons};
+
+    private static ScanFinding Named(
+        string id,
+        FindingSeverity severity,
+        int score,
+        string title,
+        string summary,
+        EvidenceRecord evidence,
+        KnownCheatNameEntry named,
+        string method,
+        params string[] reasons) => new()
+    {
+        RuleId = id,
+        Severity = severity,
+        Score = score,
+        Title = title,
+        Summary = summary,
+        EvidenceSource = evidence.Source,
+        Path = evidence.Path ?? evidence.Url,
+        HashSha256 = evidence.HashSha256,
+        Timestamp = evidence.Timestamp,
+        DetectedCheatName = named.Name,
+        CheatFamily = named.Family,
+        DetectionMethod = method,
+        Reasons = reasons
+    };
+
+    private static int MetaInt(EvidenceRecord item, string key) =>
+        item.Metadata.TryGetValue(key, out string? value) && int.TryParse(value, out int parsed) ? parsed : 0;
+
+    private static bool MetaBool(EvidenceRecord item, string key) =>
+        item.Metadata.TryGetValue(key, out string? value) && bool.TryParse(value, out bool parsed) && parsed;
+
+    private static string Normalize(string name) =>
+        new string(Path.GetFileNameWithoutExtension(name).ToLowerInvariant().Where(char.IsLetterOrDigit).ToArray());
+
+    private static ScanFinding F(
+        string id,
+        FindingSeverity severity,
+        int score,
+        string title,
+        string summary,
+        EvidenceRecord evidence,
+        params string[] reasons) => new()
+    {
+        RuleId = id,
+        Severity = severity,
+        Score = score,
+        Title = title,
+        Summary = summary,
+        EvidenceSource = evidence.Source,
+        Path = evidence.Path ?? evidence.Url,
+        HashSha256 = evidence.HashSha256,
+        Timestamp = evidence.Timestamp,
+        Reasons = reasons
+    };
 }

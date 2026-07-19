@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.4.0
+- Added compact rounded custom-window UI and dark title bar.
+- Reduced default window size and removed unnecessary visual clutter.
+- Added curated named-cheat alias rules and independent named-evidence correlation.
+- Reduced false positives for ordinary unsigned installers and generic archives.
+- Added bilingual English/Mongolian PDF verdicts, labels, explanations, and limitations.
+- Updated version, installer, manifest, and release documentation.
+
 ## 1.3.0
 - Fixed false `NOT DETECTED` results for many downloaded-but-not-executed executable/archive files.
 - Full scan is now the default profile.

@@ -8,162 +8,423 @@ namespace DoubleGScanner.Services;
 
 public sealed class ReportService
 {
-    public async Task<ReportBundle> CreateAsync(ScanResult result,CancellationToken token)
+    public async Task<ReportBundle> CreateAsync(ScanResult result, CancellationToken token)
     {
-        string dir=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),"DoubleG Scanner","Reports",result.ScanId);
-        Directory.CreateDirectory(dir);
-        string jsonPath=Path.Combine(dir,$"DoubleG-Scanner_Evidence_{result.ScanId}.json");
-        string json=JsonSerializer.Serialize(result,new JsonSerializerOptions{WriteIndented=true});
-        await File.WriteAllTextAsync(jsonPath,json,token);
-        result.EvidenceJsonHash=HashService.TrySha256(jsonPath)??"Unavailable";
+        string directory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+            "DoubleG Scanner", "Reports", result.ScanId);
+        Directory.CreateDirectory(directory);
 
-        string pdfPath=Path.Combine(dir,$"DoubleG-Scanner_Report_{result.ScanId}.pdf");
-        var renderer=new PdfDocumentRenderer{Document=Build(result)};
-        renderer.RenderDocument();renderer.PdfDocument.Save(pdfPath);
-        string pdfHash=HashService.TrySha256(pdfPath)??"Unavailable";
-        string hashPath=pdfPath+".sha256.txt";
-        await File.WriteAllTextAsync(hashPath,$"{pdfHash}  {Path.GetFileName(pdfPath)}{Environment.NewLine}",token);
-        return new(){PdfPath=pdfPath,JsonPath=jsonPath,PdfHashPath=hashPath};
+        string jsonPath = Path.Combine(directory, $"DoubleG-Scanner_Evidence_{result.ScanId}.json");
+        string json = JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true });
+        await File.WriteAllTextAsync(jsonPath, json, token);
+        result.EvidenceJsonHash = HashService.TrySha256(jsonPath) ?? "Unavailable";
+
+        string pdfPath = Path.Combine(directory, $"DoubleG-Scanner_Report_{result.ScanId}.pdf");
+        var renderer = new PdfDocumentRenderer { Document = Build(result) };
+        renderer.RenderDocument();
+        renderer.PdfDocument.Save(pdfPath);
+
+        string pdfHash = HashService.TrySha256(pdfPath) ?? "Unavailable";
+        string hashPath = pdfPath + ".sha256.txt";
+        await File.WriteAllTextAsync(hashPath, $"{pdfHash}  {Path.GetFileName(pdfPath)}{Environment.NewLine}", token);
+        return new ReportBundle { PdfPath = pdfPath, JsonPath = jsonPath, PdfHashPath = hashPath };
     }
 
-    private static Document Build(ScanResult r)
+    private static Document Build(ScanResult result)
     {
-        var d=new Document();d.Info.Title="DoubleG Scanner CS2 System Integrity Report";d.Info.Author="DoubleG Scanner";d.Info.Subject=r.ScanId;
-        Style normal=d.Styles["Normal"]!;normal.Font.Name="Segoe UI";normal.Font.Size=8.5;normal.Font.Color=Color.Parse("#263246");
-        Style title=d.Styles.AddStyle("DGTitle","Normal");title.Font.Size=22;title.Font.Bold=true;title.Font.Color=Color.Parse("#B51620");
-        Style heading=d.Styles.AddStyle("DGHeading","Normal");heading.Font.Size=12.5;heading.Font.Bold=true;heading.Font.Color=Color.Parse("#241114");
-        heading.ParagraphFormat.SpaceBefore=Unit.FromPoint(12);heading.ParagraphFormat.SpaceAfter=Unit.FromPoint(6);
+        var document = new Document();
+        document.Info.Title = "DoubleG Scanner CS2 System Integrity Report";
+        document.Info.Author = "DoubleG Team";
+        document.Info.Subject = result.ScanId;
 
-        Section s=d.AddSection();s.PageSetup.PageFormat=PageFormat.A4;s.PageSetup.TopMargin=Unit.FromCentimeter(1.55);
-        s.PageSetup.BottomMargin=Unit.FromCentimeter(1.55);s.PageSetup.LeftMargin=Unit.FromCentimeter(1.55);s.PageSetup.RightMargin=Unit.FromCentimeter(1.55);
-        Cover(s,r);Summary(s,r);Coverage(s,r);Findings(s,r);Timeline(s,r);
-        EvidenceTable(s,r,EvidenceKind.Antivirus,"MICROSOFT DEFENDER DETECTIONS",80);
-        EvidenceTable(s,r,EvidenceKind.Browser,"RELEVANT BROWSER RECORDS",80);
-        EvidenceTable(s,r,EvidenceKind.DeletedFile,"DELETED-FILE METADATA",80);
-        EvidenceTable(s,r,EvidenceKind.Module,"CS2 MODULE EVIDENCE",160);
-        EvidenceTable(s,r,EvidenceKind.Network,"LIVE NETWORK CONNECTIONS",120);
-        Integrity(s,r);Limitations(s,r);
-        Paragraph footer=s.Footers.Primary.AddParagraph();footer.Format.Alignment=ParagraphAlignment.Center;footer.Format.Font.Size=7;
-        footer.Format.Font.Color=Color.Parse("#8A7470");footer.AddText($"DoubleG Scanner {r.ScannerVersion} | {r.ScanId} | Local read-only report");
-        return d;
+        Style normal = document.Styles["Normal"]!;
+        normal.Font.Name = "Segoe UI";
+        normal.Font.Size = 8.5;
+        normal.Font.Color = Color.Parse("#2B2530");
+
+        Style title = document.Styles.AddStyle("DGTitle", "Normal");
+        title.Font.Size = 22;
+        title.Font.Bold = true;
+        title.Font.Color = Color.Parse("#B51620");
+
+        Style heading = document.Styles.AddStyle("DGHeading", "Normal");
+        heading.Font.Size = 12.5;
+        heading.Font.Bold = true;
+        heading.Font.Color = Color.Parse("#271416");
+        heading.ParagraphFormat.SpaceBefore = Unit.FromPoint(12);
+        heading.ParagraphFormat.SpaceAfter = Unit.FromPoint(6);
+
+        Section section = document.AddSection();
+        section.PageSetup.PageFormat = PageFormat.A4;
+        section.PageSetup.TopMargin = Unit.FromCentimeter(1.5);
+        section.PageSetup.BottomMargin = Unit.FromCentimeter(1.5);
+        section.PageSetup.LeftMargin = Unit.FromCentimeter(1.5);
+        section.PageSetup.RightMargin = Unit.FromCentimeter(1.5);
+
+        Cover(section, result);
+        Summary(section, result);
+        Coverage(section, result);
+        Findings(section, result);
+        Timeline(section, result);
+        EvidenceTable(section, result, EvidenceKind.Antivirus, "MICROSOFT DEFENDER DETECTIONS / DEFENDER ИЛРҮҮЛЭЛТ", 80);
+        EvidenceTable(section, result, EvidenceKind.Browser, "RELEVANT BROWSER RECORDS / BROWSER БҮРТГЭЛ", 80);
+        EvidenceTable(section, result, EvidenceKind.DeletedFile, "DELETED-FILE METADATA / УСТГАСАН ФАЙЛЫН МӨР", 80);
+        EvidenceTable(section, result, EvidenceKind.Module, "CS2 MODULE EVIDENCE / CS2 MODULE НОТОЛГОО", 160);
+        Integrity(section, result);
+        Limitations(section, result);
+
+        Paragraph footer = section.Footers.Primary.AddParagraph();
+        footer.Format.Alignment = ParagraphAlignment.Center;
+        footer.Format.Font.Size = 7;
+        footer.Format.Font.Color = Color.Parse("#8A7470");
+        footer.AddText($"DoubleG Scanner {result.ScannerVersion} | {result.ScanId} | Made by DoubleG Team");
+        return document;
     }
 
-    private static void Cover(Section s,ScanResult r)
+    private static void Cover(Section section, ScanResult result)
     {
-        Paragraph brand=s.AddParagraph();brand.Style="DGTitle";brand.AddText("DOUBLEG SCANNER");
-        Paragraph sub=s.AddParagraph("CS2 SYSTEM INTEGRITY REPORT");sub.Format.Font.Size=9;sub.Format.Font.Bold=true;sub.Format.Font.Color=Color.Parse("#8A6F6B");
-        sub.Format.SpaceAfter=Unit.FromPoint(14);
+        Paragraph brand = section.AddParagraph();
+        brand.Style = "DGTitle";
+        brand.AddText("DOUBLEG SCANNER");
 
-        Table banner=s.AddTable();banner.AddColumn(Unit.FromCentimeter(17));Row row=banner.AddRow();
-        string bg=r.Verdict switch{ScanVerdict.Detected=>"#FFF0F3",ScanVerdict.Review=>"#FFF8E7",ScanVerdict.NotDetected=>"#EAFBF4",_=>"#F1F4F8"};
-        string fg=r.Verdict switch{ScanVerdict.Detected=>"#B4233D",ScanVerdict.Review=>"#946200",ScanVerdict.NotDetected=>"#16704A",_=>"#4B5565"};
-        row.Cells[0].Shading.Color=Color.Parse(bg);row.Cells[0].Borders.Color=Color.Parse(fg);row.Cells[0].Borders.Width=Unit.FromPoint(.9);
-        row.Cells[0].Format.LeftIndent=Unit.FromPoint(12);row.Cells[0].Format.RightIndent=Unit.FromPoint(12);
-        row.Cells[0].Format.SpaceBefore=Unit.FromPoint(12);row.Cells[0].Format.SpaceAfter=Unit.FromPoint(12);
-        Paragraph vt=row.Cells[0].AddParagraph();vt.Format.Font.Size=17;vt.Format.Font.Bold=true;vt.Format.Font.Color=Color.Parse(fg);vt.AddText(VerdictTitle(r.Verdict));
-        Paragraph vd=row.Cells[0].AddParagraph();vd.Format.SpaceBefore=Unit.FromPoint(4);vd.AddText(VerdictText(r.Verdict));
-        s.AddParagraph().Format.SpaceAfter=Unit.FromPoint(5);
+        Paragraph subtitle = section.AddParagraph("CS2 SYSTEM INTEGRITY REPORT / СИСТЕМИЙН ШАЛГАЛТЫН ТАЙЛАН");
+        subtitle.Format.Font.Size = 9;
+        subtitle.Format.Font.Bold = true;
+        subtitle.Format.Font.Color = Color.Parse("#8A6F6B");
+        subtitle.Format.SpaceAfter = Unit.FromPoint(14);
 
-        Table meta=s.AddTable();meta.Borders.Color=Color.Parse("#E5D8D6");meta.Borders.Width=Unit.FromPoint(.55);
-        meta.AddColumn(Unit.FromCentimeter(4.2));meta.AddColumn(Unit.FromCentimeter(12.8));
-        Meta(meta,"Scan ID",r.ScanId);Meta(meta,"Scan mode",r.Mode.ToString());Meta(meta,"Completed",r.CompletedAt.ToString("yyyy-MM-dd HH:mm:ss zzz"));
-        Meta(meta,"Risk score",$"{r.RiskScore} / 200");Meta(meta,"Findings",$"{r.CriticalCount} critical, {r.HighCount} high, {r.WarningCount} warning");
-        Meta(meta,"Scanner / rules",$"{r.ScannerVersion} / {r.RuleDatabaseVersion}");Meta(meta,"Access",r.IsElevated?"Administrator":"Standard user");
-    }
-
-    private static void Summary(Section s,ScanResult r)
-    {
-        H(s,"EXECUTIVE SUMMARY");Paragraph p=s.AddParagraph();
-        p.AddText(r.Verdict switch
+        Table banner = section.AddTable();
+        banner.AddColumn(Unit.FromCentimeter(17));
+        Row row = banner.AddRow();
+        string background = result.Verdict switch
         {
-            ScanVerdict.Detected=>"At least one high-confidence indicator was identified by exact or strongly correlated evidence. Review every critical finding before taking action.",
-            ScanVerdict.Review=>"The scan was not conclusive, but evidence requiring manual review was identified. A warning or high finding is not proof by itself.",
-            ScanVerdict.NotDetected=>"No known high-confidence indicator was detected by the completed modules. This does not prove that cheating never occurred.",
-            _=>"The scan did not produce a reliable complete verdict. Review the coverage table and rerun if appropriate."
+            ScanVerdict.Detected => "#FFF0F3",
+            ScanVerdict.Review => "#FFF8E7",
+            ScanVerdict.NotDetected => "#EAFBF4",
+            _ => "#F1F4F8"
+        };
+        string foreground = result.Verdict switch
+        {
+            ScanVerdict.Detected => "#B4233D",
+            ScanVerdict.Review => "#946200",
+            ScanVerdict.NotDetected => "#16704A",
+            _ => "#4B5565"
+        };
+        row.Cells[0].Shading.Color = Color.Parse(background);
+        row.Cells[0].Borders.Color = Color.Parse(foreground);
+        row.Cells[0].Borders.Width = Unit.FromPoint(0.9);
+        row.Cells[0].Format.LeftIndent = Unit.FromPoint(12);
+        row.Cells[0].Format.RightIndent = Unit.FromPoint(12);
+        row.Cells[0].Format.SpaceBefore = Unit.FromPoint(12);
+        row.Cells[0].Format.SpaceAfter = Unit.FromPoint(12);
+
+        Paragraph verdictTitle = row.Cells[0].AddParagraph();
+        verdictTitle.Format.Font.Size = 17;
+        verdictTitle.Format.Font.Bold = true;
+        verdictTitle.Format.Font.Color = Color.Parse(foreground);
+        verdictTitle.AddText(VerdictTitle(result.Verdict));
+
+        Paragraph verdictText = row.Cells[0].AddParagraph();
+        verdictText.Format.SpaceBefore = Unit.FromPoint(4);
+        verdictText.AddText(VerdictText(result.Verdict));
+        verdictText.AddLineBreak();
+        verdictText.AddFormattedText(MongolianVerdictText(result.Verdict), TextFormat.Bold);
+        section.AddParagraph().Format.SpaceAfter = Unit.FromPoint(5);
+
+        Table metadata = section.AddTable();
+        metadata.Borders.Color = Color.Parse("#E5D8D6");
+        metadata.Borders.Width = Unit.FromPoint(0.55);
+        metadata.AddColumn(Unit.FromCentimeter(4.5));
+        metadata.AddColumn(Unit.FromCentimeter(12.5));
+        Meta(metadata, "Scan ID / Шалгалтын ID", result.ScanId);
+        Meta(metadata, "Scan mode / Горим", result.Mode.ToString());
+        Meta(metadata, "Completed / Дууссан", result.CompletedAt.ToString("yyyy-MM-dd HH:mm:ss zzz"));
+        Meta(metadata, "Risk score / Эрсдэлийн оноо", $"{result.RiskScore} / 200");
+        Meta(metadata, "Findings / Илэрсэн зүйл", $"{result.CriticalCount} critical, {result.HighCount} high, {result.WarningCount} warning");
+        Meta(metadata, "Scanner / rules", $"{result.ScannerVersion} / {result.RuleDatabaseVersion}");
+        Meta(metadata, "Access / Эрх", result.IsElevated ? "Administrator" : "Standard user");
+    }
+
+    private static void Summary(Section section, ScanResult result)
+    {
+        H(section, "EXECUTIVE SUMMARY / ТОВЧ ДҮГНЭЛТ");
+        Paragraph paragraph = section.AddParagraph();
+        paragraph.AddText(result.Verdict switch
+        {
+            ScanVerdict.Detected => "At least one high-confidence indicator was identified. Review every critical finding before taking action.",
+            ScanVerdict.Review => "The scan was not conclusive, but evidence requiring manual review was identified.",
+            ScanVerdict.NotDetected => "No known high-confidence indicator was detected by the completed modules.",
+            _ => "The scan did not produce a reliable complete verdict."
         });
-        Table t=s.AddTable();for(int i=0;i<4;i++)t.AddColumn(Unit.FromCentimeter(4.25));
-        Row h=t.AddRow();h.Shading.Color=Color.Parse("#281416");h.Format.Font.Color=Colors.White;h.Format.Font.Bold=true;
-        string[] names={"Evidence records","Findings","Modules complete","Risk score"};for(int i=0;i<4;i++)h.Cells[i].AddParagraph(names[i]);
-        Row v=t.AddRow();v.Format.Font.Size=13;v.Format.Font.Bold=true;v.Cells[0].AddParagraph(r.Evidence.Count.ToString("N0"));
-        v.Cells[1].AddParagraph(r.Findings.Count.ToString("N0"));v.Cells[2].AddParagraph(r.Coverage.Count(x=>x.Status==CoverageStatus.Completed).ToString());
-        v.Cells[3].AddParagraph(r.RiskScore.ToString());Format(t,6,true);
+        paragraph.AddLineBreak();
+        paragraph.AddFormattedText(MongolianVerdictText(result.Verdict), TextFormat.Bold);
+
+        Table table = section.AddTable();
+        for (int i = 0; i < 4; i++) table.AddColumn(Unit.FromCentimeter(4.25));
+        Row header = table.AddRow();
+        header.Shading.Color = Color.Parse("#281416");
+        header.Format.Font.Color = Colors.White;
+        header.Format.Font.Bold = true;
+        string[] names = { "Evidence / Нотолгоо", "Findings / Олдвор", "Modules / Модуль", "Risk / Эрсдэл" };
+        for (int i = 0; i < names.Length; i++) header.Cells[i].AddParagraph(names[i]);
+        Row values = table.AddRow();
+        values.Format.Font.Size = 13;
+        values.Format.Font.Bold = true;
+        values.Cells[0].AddParagraph(result.Evidence.Count.ToString("N0"));
+        values.Cells[1].AddParagraph(result.Findings.Count.ToString("N0"));
+        values.Cells[2].AddParagraph(result.Coverage.Count(x => x.Status == CoverageStatus.Completed).ToString());
+        values.Cells[3].AddParagraph(result.RiskScore.ToString());
+        Format(table, 6, true);
     }
 
-    private static void Coverage(Section s,ScanResult r)
+    private static void Coverage(Section section, ScanResult result)
     {
-        H(s,"SCAN COVERAGE");Table t=s.AddTable();t.Borders.Color=Color.Parse("#E5D8D6");t.Borders.Width=Unit.FromPoint(.45);
-        t.AddColumn(Unit.FromCentimeter(4.1));t.AddColumn(Unit.FromCentimeter(2.2));t.AddColumn(Unit.FromCentimeter(2.2));t.AddColumn(Unit.FromCentimeter(8.5));
-        Header(t,"Module","Status","Checked","Summary");
-        foreach(ScanCoverage x in r.Coverage){Row row=t.AddRow();row.Cells[0].AddParagraph(x.Module);row.Cells[1].AddParagraph(x.Status.ToString());
-            row.Cells[2].AddParagraph(x.ItemsChecked.ToString("N0"));row.Cells[3].AddParagraph(x.Summary);}
-        Format(t,4,false);
-    }
-
-    private static void Findings(Section s,ScanResult r)
-    {
-        H(s,"FINDINGS");if(r.Findings.Count==0){s.AddParagraph("No warning, high, or critical findings were produced by the completed rules.");return;}
-        int i=0;foreach(ScanFinding f in r.Findings.Take(80))
+        H(section, "SCAN COVERAGE / ШАЛГАСАН ХЭСГҮҮД");
+        Table table = section.AddTable();
+        table.Borders.Color = Color.Parse("#E5D8D6");
+        table.Borders.Width = Unit.FromPoint(0.45);
+        table.AddColumn(Unit.FromCentimeter(4.1));
+        table.AddColumn(Unit.FromCentimeter(2.2));
+        table.AddColumn(Unit.FromCentimeter(2.2));
+        table.AddColumn(Unit.FromCentimeter(8.5));
+        Header(table, "Module / Модуль", "Status / Төлөв", "Checked / Тоо", "Summary / Тайлбар");
+        foreach (ScanCoverage coverage in result.Coverage)
         {
-            i++;Table t=s.AddTable();t.AddColumn(Unit.FromCentimeter(17));Row row=t.AddRow();
-            string color=f.Severity switch{FindingSeverity.Critical=>"#C91F35",FindingSeverity.High=>"#D44A32",FindingSeverity.Warning=>"#A86C00",_=>"#69585A"};
-            Cell c=row.Cells[0];c.Borders.Color=Color.Parse(color);c.Borders.Width=Unit.FromPoint(.8);c.Shading.Color=Color.Parse("#FFFDFC");
-            c.Format.LeftIndent=Unit.FromPoint(8);c.Format.RightIndent=Unit.FromPoint(8);c.Format.SpaceBefore=Unit.FromPoint(7);c.Format.SpaceAfter=Unit.FromPoint(7);
-            Paragraph title=c.AddParagraph();title.Format.Font.Size=10.5;title.Format.Font.Bold=true;title.Format.Font.Color=Color.Parse(color);
-            title.AddText($"FINDING {i:00} - {f.Severity.ToString().ToUpperInvariant()} - {f.Title}");
-            c.AddParagraph($"Rule: {f.RuleId} | Score: {f.Score} | Source: {f.EvidenceSource}");c.AddParagraph(f.Summary);
-            if(!string.IsNullOrWhiteSpace(f.DetectedCheatName))c.AddParagraph("Detected cheat: "+f.DetectedCheatName);
-            if(!string.IsNullOrWhiteSpace(f.CheatFamily))c.AddParagraph("Cheat family: "+f.CheatFamily);
-            if(!string.IsNullOrWhiteSpace(f.DetectionMethod))c.AddParagraph("Detection method: "+f.DetectionMethod);
-            if(!string.IsNullOrWhiteSpace(f.Path))c.AddParagraph("Artifact: "+f.Path);if(!string.IsNullOrWhiteSpace(f.HashSha256))c.AddParagraph("SHA-256: "+f.HashSha256);
-            if(f.Timestamp is not null)c.AddParagraph("Time: "+f.Timestamp.Value.ToString("yyyy-MM-dd HH:mm:ss zzz"));
-            if(f.Reasons.Count>0)c.AddParagraph("Reasons: "+string.Join("; ",f.Reasons));s.AddParagraph().Format.SpaceAfter=Unit.FromPoint(2);
+            Row row = table.AddRow();
+            row.Cells[0].AddParagraph(coverage.Module);
+            row.Cells[1].AddParagraph(coverage.Status.ToString());
+            row.Cells[2].AddParagraph(coverage.ItemsChecked.ToString("N0"));
+            row.Cells[3].AddParagraph(coverage.Summary);
+        }
+        Format(table, 4, false);
+    }
+
+    private static void Findings(Section section, ScanResult result)
+    {
+        H(section, "FINDINGS / ИЛЭРСЭН ЗҮЙЛС");
+        if (result.Findings.Count == 0)
+        {
+            section.AddParagraph("No warning, high, or critical findings were produced. / Анхааруулах эсвэл өндөр эрсдэлтэй олдвор илрээгүй.");
+            return;
+        }
+
+        int index = 0;
+        foreach (ScanFinding finding in result.Findings.Take(80))
+        {
+            index++;
+            Table table = section.AddTable();
+            table.AddColumn(Unit.FromCentimeter(17));
+            Row row = table.AddRow();
+            string color = finding.Severity switch
+            {
+                FindingSeverity.Critical => "#C91F35",
+                FindingSeverity.High => "#D44A32",
+                FindingSeverity.Warning => "#A86C00",
+                _ => "#69585A"
+            };
+            Cell cell = row.Cells[0];
+            cell.Borders.Color = Color.Parse(color);
+            cell.Borders.Width = Unit.FromPoint(0.8);
+            cell.Shading.Color = Color.Parse("#FFFDFC");
+            cell.Format.LeftIndent = Unit.FromPoint(8);
+            cell.Format.RightIndent = Unit.FromPoint(8);
+            cell.Format.SpaceBefore = Unit.FromPoint(7);
+            cell.Format.SpaceAfter = Unit.FromPoint(7);
+
+            Paragraph title = cell.AddParagraph();
+            title.Format.Font.Size = 10.5;
+            title.Format.Font.Bold = true;
+            title.Format.Font.Color = Color.Parse(color);
+            title.AddText($"FINDING {index:00} - {finding.Severity.ToString().ToUpperInvariant()} - {finding.Title}");
+
+            cell.AddParagraph($"Rule: {finding.RuleId} | Score: {finding.Score} | Source: {finding.EvidenceSource}");
+            cell.AddParagraph(finding.Summary);
+            if (!string.IsNullOrWhiteSpace(finding.DetectedCheatName))
+                Label(cell, "Detected cheat / Илэрсэн cheat", finding.DetectedCheatName);
+            if (!string.IsNullOrWhiteSpace(finding.CheatFamily))
+                Label(cell, "Cheat family / Cheat төрөл", finding.CheatFamily);
+            if (!string.IsNullOrWhiteSpace(finding.DetectionMethod))
+                Label(cell, "Detection method / Илрүүлсэн арга", finding.DetectionMethod);
+            if (!string.IsNullOrWhiteSpace(finding.Path))
+                Label(cell, "Artifact path / Файлын зам", finding.Path);
+            if (!string.IsNullOrWhiteSpace(finding.HashSha256))
+                Label(cell, "SHA-256", finding.HashSha256);
+            if (finding.Timestamp is not null)
+                Label(cell, "Time / Хугацаа", finding.Timestamp.Value.ToString("yyyy-MM-dd HH:mm:ss zzz"));
+            if (finding.Reasons.Count > 0)
+                Label(cell, "Reasons / Шалтгаан", string.Join("; ", finding.Reasons));
+
+            if (finding.RuleId.StartsWith("DGS-NAMED", StringComparison.OrdinalIgnoreCase))
+            {
+                Paragraph explanation = cell.AddParagraph();
+                explanation.Format.SpaceBefore = Unit.FromPoint(4);
+                explanation.AddFormattedText("Монгол тайлбар: ", TextFormat.Bold);
+                explanation.AddText(finding.Severity == FindingSeverity.Critical
+                    ? "Танигдсан cheat-ийн нэр файлын нэр эсвэл мөрөнд таарч, нэмэлт техникийн нотолгоотой давхцсан."
+                    : "Cheat-ийн нэртэй төстэй мөр илэрсэн боловч зөвхөн нэрээр нь 100% батлах боломжгүй тул гараар нягтална.");
+            }
+            section.AddParagraph().Format.SpaceAfter = Unit.FromPoint(2);
         }
     }
 
-    private static void Timeline(Section s,ScanResult r)
+    private static void Timeline(Section section, ScanResult result)
     {
-        EvidenceRecord[] items=r.Evidence.Where(x=>x.Timestamp is not null&&(x.Kind==EvidenceKind.Browser||x.Kind==EvidenceKind.Execution||
-            x.Kind==EvidenceKind.DeletedFile||x.Kind==EvidenceKind.Process||x.Kind==EvidenceKind.Antivirus)).OrderByDescending(x=>x.Timestamp).Take(120).ToArray();
-        if(items.Length==0)return;H(s,"RECENT ACTIVITY TIMELINE");Table t=s.AddTable();t.Borders.Color=Color.Parse("#E8DCDA");t.Borders.Width=Unit.FromPoint(.4);
-        t.AddColumn(Unit.FromCentimeter(3.2));t.AddColumn(Unit.FromCentimeter(2.6));t.AddColumn(Unit.FromCentimeter(4));t.AddColumn(Unit.FromCentimeter(7.2));
-        Header(t,"Time","Type","Name","Artifact / detail");foreach(EvidenceRecord x in items){Row row=t.AddRow();row.Cells[0].AddParagraph(x.Timestamp!.Value.ToString("yyyy-MM-dd HH:mm"));
-            row.Cells[1].AddParagraph(x.Kind.ToString());row.Cells[2].AddParagraph(x.Name);row.Cells[3].AddParagraph(x.Path??x.Url??x.Detail??"");}Format(t,3.8,false);
+        EvidenceRecord[] items = result.Evidence
+            .Where(x => x.Timestamp is not null && (x.Kind == EvidenceKind.Browser || x.Kind == EvidenceKind.Execution ||
+                x.Kind == EvidenceKind.DeletedFile || x.Kind == EvidenceKind.Process || x.Kind == EvidenceKind.Antivirus))
+            .OrderByDescending(x => x.Timestamp)
+            .Take(120)
+            .ToArray();
+        if (items.Length == 0) return;
+
+        H(section, "RECENT ACTIVITY TIMELINE / СҮҮЛИЙН ҮЙЛДЛИЙН ДАРААЛАЛ");
+        Table table = section.AddTable();
+        table.Borders.Color = Color.Parse("#E8DCDA");
+        table.Borders.Width = Unit.FromPoint(0.4);
+        table.AddColumn(Unit.FromCentimeter(3.2));
+        table.AddColumn(Unit.FromCentimeter(2.6));
+        table.AddColumn(Unit.FromCentimeter(4));
+        table.AddColumn(Unit.FromCentimeter(7.2));
+        Header(table, "Time / Хугацаа", "Type / Төрөл", "Name / Нэр", "Artifact / detail");
+        foreach (EvidenceRecord item in items)
+        {
+            Row row = table.AddRow();
+            row.Cells[0].AddParagraph(item.Timestamp!.Value.ToString("yyyy-MM-dd HH:mm"));
+            row.Cells[1].AddParagraph(item.Kind.ToString());
+            row.Cells[2].AddParagraph(item.Name);
+            row.Cells[3].AddParagraph(item.Path ?? item.Url ?? item.Detail ?? "");
+        }
+        Format(table, 3.8, false);
     }
 
-    private static void EvidenceTable(Section s,ScanResult r,EvidenceKind kind,string title,int limit)
+    private static void EvidenceTable(Section section, ScanResult result, EvidenceKind kind, string title, int limit)
     {
-        EvidenceRecord[] items=r.Evidence.Where(x=>x.Kind==kind).Take(limit).ToArray();if(items.Length==0)return;H(s,title);
-        Table t=s.AddTable();t.Borders.Color=Color.Parse("#E8DCDA");t.Borders.Width=Unit.FromPoint(.4);
-        t.AddColumn(Unit.FromCentimeter(3.3));t.AddColumn(Unit.FromCentimeter(4));t.AddColumn(Unit.FromCentimeter(9.7));Header(t,"Source","Name","Artifact / detail");
-        foreach(EvidenceRecord x in items){Row row=t.AddRow();row.Cells[0].AddParagraph(x.Source);row.Cells[1].AddParagraph(x.Name);row.Cells[2].AddParagraph(x.Path??x.Url??x.Detail??"");}
-        Format(t,3.8,false);
+        EvidenceRecord[] items = result.Evidence.Where(x => x.Kind == kind).Take(limit).ToArray();
+        if (items.Length == 0) return;
+        H(section, title);
+        Table table = section.AddTable();
+        table.Borders.Color = Color.Parse("#E8DCDA");
+        table.Borders.Width = Unit.FromPoint(0.4);
+        table.AddColumn(Unit.FromCentimeter(3.3));
+        table.AddColumn(Unit.FromCentimeter(4));
+        table.AddColumn(Unit.FromCentimeter(9.7));
+        Header(table, "Source / Эх үүсвэр", "Name / Нэр", "Artifact / detail");
+        foreach (EvidenceRecord item in items)
+        {
+            Row row = table.AddRow();
+            row.Cells[0].AddParagraph(item.Source);
+            row.Cells[1].AddParagraph(item.Name);
+            row.Cells[2].AddParagraph(item.Path ?? item.Url ?? item.Detail ?? "");
+        }
+        Format(table, 3.8, false);
     }
 
-    private static void Integrity(Section s,ScanResult r)
+    private static void Integrity(Section section, ScanResult result)
     {
-        H(s,"REPORT AND SCANNER INTEGRITY");Table t=s.AddTable();t.Borders.Color=Color.Parse("#E5D8D6");t.Borders.Width=Unit.FromPoint(.45);
-        t.AddColumn(Unit.FromCentimeter(4.4));t.AddColumn(Unit.FromCentimeter(12.6));Meta(t,"Scanner binary SHA-256",r.ScannerBinaryHash);
-        Meta(t,"Evidence JSON SHA-256",r.EvidenceJsonHash??"Unavailable");Meta(t,"Rule database",r.RuleDatabaseVersion);Meta(t,"Privacy mode","Local-only / read-only / no upload / no deletion");
-    }
-    private static void Limitations(Section s,ScanResult r)
-    {
-        H(s,"IMPORTANT INTERPRETATION AND LIMITATIONS");Paragraph p=s.AddParagraph();
-        p.AddFormattedText("This report is evidence-based, not an automatic punishment decision. ",TextFormat.Bold);
-        p.AddText("A naming match or browser entry is not proof. Exact hashes and independent correlation carry more weight. ");
-        p.AddText("Not detected means completed modules found no known high-confidence indicator; it does not prove cheating never occurred. ");
-        p.AddText("This build does not install a kernel driver, recover arbitrary private deleted content, or claim reliable detection of every DMA/kernel/private cheat technique. Microsoft Defender results depend on the definitions and protection state installed on the scanned computer. ");
-        p.AddText(r.PrivacyStatement);
+        H(section, "REPORT INTEGRITY / ТАЙЛАНГИЙН БҮРЭН БАЙДАЛ");
+        Table table = section.AddTable();
+        table.Borders.Color = Color.Parse("#E5D8D6");
+        table.Borders.Width = Unit.FromPoint(0.45);
+        table.AddColumn(Unit.FromCentimeter(4.6));
+        table.AddColumn(Unit.FromCentimeter(12.4));
+        Meta(table, "Scanner binary SHA-256", result.ScannerBinaryHash);
+        Meta(table, "Evidence JSON SHA-256", result.EvidenceJsonHash ?? "Unavailable");
+        Meta(table, "Rule database / Дүрмийн сан", result.RuleDatabaseVersion);
+        Meta(table, "Privacy mode / Нууцлал", "Local-only / read-only / no upload / no deletion");
     }
 
-    private static void H(Section s,string text){Paragraph h=s.AddParagraph(text);h.Style="DGHeading";}
-    private static void Meta(Table t,string name,string value){Row r=t.AddRow();r.Cells[0].Shading.Color=Color.Parse("#F8F2F0");r.Cells[0].Format.Font.Bold=true;
-        r.Cells[0].AddParagraph(name);r.Cells[1].AddParagraph(value);foreach(Cell c in r.Cells){c.VerticalAlignment=VerticalAlignment.Center;c.Format.LeftIndent=Unit.FromPoint(5);c.Format.SpaceBefore=Unit.FromPoint(4);c.Format.SpaceAfter=Unit.FromPoint(4);}}
-    private static void Header(Table t,params string[] names){Row r=t.AddRow();r.Shading.Color=Color.Parse("#281416");r.Format.Font.Color=Colors.White;r.Format.Font.Bold=true;
-        for(int i=0;i<names.Length;i++)r.Cells[i].AddParagraph(names[i]);}
-    private static void Format(Table t,double pad,bool center){foreach(Row r in t.Rows)foreach(Cell c in r.Cells){c.VerticalAlignment=VerticalAlignment.Center;c.Format.SpaceBefore=Unit.FromPoint(pad);c.Format.SpaceAfter=Unit.FromPoint(pad);c.Format.LeftIndent=Unit.FromPoint(3);if(center)c.Format.Alignment=ParagraphAlignment.Center;}}
-    private static string VerdictTitle(ScanVerdict v)=>v switch{ScanVerdict.Detected=>"CHEAT INDICATORS DETECTED",ScanVerdict.Review=>"MANUAL REVIEW REQUIRED",
-        ScanVerdict.NotDetected=>"NO KNOWN INDICATOR DETECTED",ScanVerdict.Cancelled=>"SCAN CANCELLED",_=>"SCAN INCOMPLETE"};
-    private static string VerdictText(ScanVerdict v)=>v switch{ScanVerdict.Detected=>"At least one high-confidence indicator was detected. Review evidence and context before action.",
-        ScanVerdict.Review=>"The evidence is not conclusive, but knowledgeable manual review is required.",ScanVerdict.NotDetected=>"No known high-confidence indicator was detected by completed modules.",
-        ScanVerdict.Cancelled=>"The user cancelled before a reliable result was produced.",_=>"Required modules could not be completed; no reliable verdict was produced."};
+    private static void Limitations(Section section, ScanResult result)
+    {
+        H(section, "IMPORTANT INTERPRETATION / ЧУХАЛ ТАЙЛБАР");
+        Paragraph english = section.AddParagraph();
+        english.AddFormattedText("This report is evidence-based, not an automatic punishment decision. ", TextFormat.Bold);
+        english.AddText("A name match or browser entry alone is not proof. Exact hashes, antivirus detections, technical indicators, and independent correlation carry more weight. ");
+        english.AddText("Not detected does not prove that cheating never occurred. ");
+        english.AddText(result.PrivacyStatement);
+
+        Paragraph mongolian = section.AddParagraph();
+        mongolian.Format.SpaceBefore = Unit.FromPoint(6);
+        mongolian.AddFormattedText("Монгол тайлбар: ", TextFormat.Bold);
+        mongolian.AddText("“Илрээгүй” гэдэг нь 100% cheat байхгүйг батлахгүй. “Review” нь сэжигтэй олдворыг гараар нягтлах шаардлагатай гэсэн үг. ");
+        mongolian.AddText("“Detected” нь exact hash, Defender илрүүлэлт, CS2 module эсвэл олон эх үүсвэрийн хүчтэй давхцсан нотолгоо илэрснийг заана. ");
+        mongolian.AddText("DoubleG Scanner файл устгахгүй, quarantine хийхгүй, нууц үг болон cookie уншихгүй.");
+    }
+
+    private static void H(Section section, string text)
+    {
+        Paragraph heading = section.AddParagraph(text);
+        heading.Style = "DGHeading";
+    }
+
+    private static void Label(Cell cell, string label, string value)
+    {
+        Paragraph paragraph = cell.AddParagraph();
+        paragraph.AddFormattedText(label + ": ", TextFormat.Bold);
+        paragraph.AddText(value);
+    }
+
+    private static void Meta(Table table, string name, string value)
+    {
+        Row row = table.AddRow();
+        row.Cells[0].Shading.Color = Color.Parse("#F8F2F0");
+        row.Cells[0].Format.Font.Bold = true;
+        row.Cells[0].AddParagraph(name);
+        row.Cells[1].AddParagraph(value);
+        foreach (Cell cell in row.Cells)
+        {
+            cell.VerticalAlignment = VerticalAlignment.Center;
+            cell.Format.LeftIndent = Unit.FromPoint(5);
+            cell.Format.SpaceBefore = Unit.FromPoint(4);
+            cell.Format.SpaceAfter = Unit.FromPoint(4);
+        }
+    }
+
+    private static void Header(Table table, params string[] names)
+    {
+        Row row = table.AddRow();
+        row.Shading.Color = Color.Parse("#281416");
+        row.Format.Font.Color = Colors.White;
+        row.Format.Font.Bold = true;
+        for (int i = 0; i < names.Length; i++) row.Cells[i].AddParagraph(names[i]);
+    }
+
+    private static void Format(Table table, double padding, bool center)
+    {
+        foreach (Row row in table.Rows)
+        foreach (Cell cell in row.Cells)
+        {
+            cell.VerticalAlignment = VerticalAlignment.Center;
+            cell.Format.SpaceBefore = Unit.FromPoint(padding);
+            cell.Format.SpaceAfter = Unit.FromPoint(padding);
+            cell.Format.LeftIndent = Unit.FromPoint(3);
+            if (center) cell.Format.Alignment = ParagraphAlignment.Center;
+        }
+    }
+
+    private static string VerdictTitle(ScanVerdict verdict) => verdict switch
+    {
+        ScanVerdict.Detected => "CHEAT INDICATORS DETECTED / CHEAT ИЛЭРСЭН",
+        ScanVerdict.Review => "MANUAL REVIEW REQUIRED / ГАРААР НЯГТАЛНА",
+        ScanVerdict.NotDetected => "NO KNOWN INDICATOR DETECTED / ШУУД ИЛРЭЭГҮЙ",
+        ScanVerdict.Cancelled => "SCAN CANCELLED / ШАЛГАЛТ ЦУЦЛАГДСАН",
+        _ => "SCAN INCOMPLETE / ШАЛГАЛТ ДУТУУ"
+    };
+
+    private static string VerdictText(ScanVerdict verdict) => verdict switch
+    {
+        ScanVerdict.Detected => "At least one high-confidence indicator was detected. Review the evidence before action.",
+        ScanVerdict.Review => "The evidence is not conclusive, but manual review is required.",
+        ScanVerdict.NotDetected => "No known high-confidence indicator was detected by completed modules.",
+        ScanVerdict.Cancelled => "The scan was cancelled before a reliable result was produced.",
+        _ => "Required modules could not be completed; no reliable verdict was produced."
+    };
+
+    private static string MongolianVerdictText(ScanVerdict verdict) => verdict switch
+    {
+        ScanVerdict.Detected => "Хүчтэй нотолгоотой cheat шинж илэрсэн. Файлын нэр, зам, илрүүлсэн арга болон шалтгааныг доорх хэсгээс шалгана.",
+        ScanVerdict.Review => "Сэжигтэй олдвор илэрсэн боловч дангаар нь cheat гэж батлах хангалтгүй. Гараар нягтлах шаардлагатай.",
+        ScanVerdict.NotDetected => "Шалгаж дууссан модулиудаас танигдсан өндөр итгэлтэй cheat шинж шууд илрээгүй.",
+        ScanVerdict.Cancelled => "Шалгалт дуусаагүй тул найдвартай үр дүн гараагүй.",
+        _ => "Зарим чухал модуль дуусаагүй тул үр дүнг бүрэн гэж үзэхгүй."
+    };
 }
