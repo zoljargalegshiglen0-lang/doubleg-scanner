@@ -1,0 +1,28 @@
+{
+  "product": "DoubleG Scanner",
+  "version": "1.0.0",
+  "network_upload": false,
+  "telemetry": false,
+  "background_service": false,
+  "startup_persistence": false,
+  "kernel_driver": false,
+  "file_delete_or_quarantine": false,
+  "password_cookie_session_collection": false,
+  "private_document_content_collection": false,
+  "writes": [
+    "Documents/DoubleG Scanner/Reports",
+    "scanner-owned temporary browser database copies removed after scan"
+  ],
+  "reads": [
+    "Windows security profile and scanner hash",
+    "process/module metadata",
+    "file hash/signature status",
+    "supported browser relevant visit/download metadata",
+    "Prefetch/UserAssist/BAM/Recent Items",
+    "Recycle Bin metadata",
+    "registered driver and Run/RunOnce/Startup metadata",
+    "live TCP table and network-interface counters",
+    "recent executable/archive metadata in Downloads/Desktop/Temp",
+    "ZIP entry names only"
+  ]
+}

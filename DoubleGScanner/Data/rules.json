@@ -1,0 +1,44 @@
+{
+  "version": "1.0.0-local",
+  "knownHashes": [],
+  "knownDomains": [],
+  "highRiskKeywords": [
+    "cs2 cheat",
+    "counter strike cheat",
+    "aimbot",
+    "wallhack",
+    "triggerbot",
+    "vac bypass",
+    "manual map",
+    "manualmap",
+    "internal cheat",
+    "external cheat",
+    "dma cheat",
+    "skin changer",
+    "silent aim",
+    "ragebot",
+    "esp hack",
+    "cheat loader",
+    "cheat injector"
+  ],
+  "mediumRiskKeywords": [
+    "injector",
+    "mapper",
+    "loader",
+    "overlay",
+    "memory tool"
+  ],
+  "trustedPublishers": [
+    "Microsoft Corporation",
+    "Valve Corp.",
+    "Valve Corporation",
+    "NVIDIA Corporation",
+    "Advanced Micro Devices",
+    "Intel Corporation",
+    "Google LLC",
+    "Mozilla Corporation",
+    "Opera Norway AS",
+    "Brave Software",
+    "Discord Inc."
+  ]
+}
