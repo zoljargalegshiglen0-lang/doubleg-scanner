@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.8.0
+- Reworked the interface using DoubleG website black and deep-red colors.
+- Added template-style rounded gradient buttons.
+- Replaced navigation buttons with checked-state radio navigation.
+- Fixed Overview, Findings and Coverage active backgrounds.
+- Fixed unreadable black text in cards and tables.
+- Preserved all scan, detection and report behavior.
+
+## 1.7.0
+- Rebuilt UI to match a clean dashboard template more closely.
+- Added compact sidebar navigation and separate Dashboard, Findings and Module pages.
+- Removed all hardcoded version badges from the UI.
+- Version now reads automatically from AssemblyInformationalVersion.
+- Updated csproj, installer, manifest, rules and security manifest to 1.7.0.
+- Preserved detection, collectors, JSON evidence and English PDF reporting.
+
 ## 1.6.1
 - Removed all Mongolian text and bilingual labels from the generated PDF report.
 - PDF report is now English-only with cleaner professional terminology.

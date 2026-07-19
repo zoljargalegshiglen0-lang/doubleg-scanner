@@ -32,7 +32,7 @@ public sealed class SystemProfileCollector : IScanCollector
                     ["Elevated"]=elevated.ToString(),["TimeZone"]=TimeZoneInfo.Local.Id,
                     ["SecureBoot"]=ReadReg(@"SYSTEM\CurrentControlSet\Control\SecureBoot\State","UEFISecureBootEnabled"),
                     ["MemoryIntegrity"]=ReadReg(@"SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity","Enabled"),
-                    ["ScannerVersion"]=Assembly.GetExecutingAssembly().GetName().Version?.ToString()??"1.4.0",
+                    ["ScannerVersion"]=Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "unknown",
                     ["ScannerHash"]=executable is null?"Unavailable":HashService.TrySha256(executable)??"Unavailable"
                 }
             }
