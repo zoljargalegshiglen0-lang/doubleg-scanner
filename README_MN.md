@@ -1,4 +1,4 @@
-# DoubleG Scanner v1.9.2
+# DoubleG Scanner v1.9.3
 
 ## New Forensic Scan
 
@@ -37,3 +37,10 @@ user, DoubleG Scanner offers to restart through Windows UAC.
 
 - Fixed Forensic Scan overlapping the consent/actions area.
 - Compact scan-mode cards now fit cleanly at supported display scales.
+
+
+## v1.9.3 Defender reliability fix
+
+- Defender target scans have visible heartbeat updates.
+- Every target has a strict safety timeout.
+- Timed-out targets are stopped and reported as Partial instead of freezing the application.

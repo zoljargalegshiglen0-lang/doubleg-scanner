@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.9.3
+- Fixed the Microsoft Defender stage permanently freezing at 85–88%.
+- Removed the unbounded redirected-output wait after a Defender timeout.
+- Added a visible heartbeat every two seconds with target and elapsed time.
+- Added per-target safety limits: Downloads 90s, Desktop 60s, Temp 60s.
+- Timed-out Defender targets are stopped and reported as Partial.
+- The scan now continues to detection and report generation after a Defender timeout.
+- Cancel now terminates the spawned Defender process tree.
+- Preserved all NTFS forensic, detection, PDF and UI behavior.
+
 ## 1.9.2
 - Fixed the Forensic Scan card overlapping the consent checkbox.
 - Changed the Scan Profile content rows to Auto sizing.
