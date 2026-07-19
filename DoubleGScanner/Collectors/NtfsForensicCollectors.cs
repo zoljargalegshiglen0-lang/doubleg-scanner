@@ -1066,21 +1066,20 @@ public sealed class UnallocatedSpaceCollector : IScanCollector
         }
     }
 
-    private static IEnumerable<(int Offset, string Type)> FindSignatures(
+    private static IReadOnlyList<(int Offset, string Type)> FindSignatures(
         ReadOnlySpan<byte> data)
     {
-        int found = 0;
+        var signatures = new List<(int Offset, string Type)>(24);
 
         for (int index = 0;
-             index + 8 < data.Length && found < 24;
+             index + 8 < data.Length && signatures.Count < 24;
              index++)
         {
             if (data[index] == (byte)'M' &&
                 data[index + 1] == (byte)'Z' &&
                 IsPortableExecutable(data, index))
             {
-                yield return (index, "PE executable");
-                found++;
+                signatures.Add((index, "PE executable"));
                 index += 63;
                 continue;
             }
@@ -1090,8 +1089,7 @@ public sealed class UnallocatedSpaceCollector : IScanCollector
                 data[index + 2] == 0x03 &&
                 data[index + 3] == 0x04)
             {
-                yield return (index, "ZIP archive");
-                found++;
+                signatures.Add((index, "ZIP archive"));
                 index += 31;
                 continue;
             }
@@ -1103,8 +1101,7 @@ public sealed class UnallocatedSpaceCollector : IScanCollector
                 data[index + 4] == 0x1A &&
                 data[index + 5] == 0x07)
             {
-                yield return (index, "RAR archive");
-                found++;
+                signatures.Add((index, "RAR archive"));
                 index += 15;
                 continue;
             }
@@ -1116,8 +1113,7 @@ public sealed class UnallocatedSpaceCollector : IScanCollector
                 data[index + 4] == 0x27 &&
                 data[index + 5] == 0x1C)
             {
-                yield return (index, "7-Zip archive");
-                found++;
+                signatures.Add((index, "7-Zip archive"));
                 index += 15;
                 continue;
             }
@@ -1131,11 +1127,12 @@ public sealed class UnallocatedSpaceCollector : IScanCollector
                 data[index + 6] == 0x1A &&
                 data[index + 7] == 0xE1)
             {
-                yield return (index, "OLE/MSI container");
-                found++;
+                signatures.Add((index, "OLE/MSI container"));
                 index += 15;
             }
         }
+
+        return signatures;
     }
 
     private static bool IsPortableExecutable(

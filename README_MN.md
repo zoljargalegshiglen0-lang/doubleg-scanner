@@ -1,4 +1,4 @@
-# DoubleG Scanner v1.9.0
+# DoubleG Scanner v1.9.1
 
 ## New Forensic Scan
 
@@ -24,3 +24,10 @@ user, DoubleG Scanner offers to restart through Windows UAC.
 - Free-cluster sampling is capped for performance and privacy.
 - SSD TRIM or overwritten clusters can permanently remove deleted content.
 - A completed scan cannot guarantee detection of every private, kernel, or DMA cheat.
+
+
+## v1.9.1 build fix
+
+- Fixed raw-signature ReadOnlySpan iterator compilation.
+- Fixed the collector namespace used by the administrator prompt.
+- Updated GitHub Actions to Node.js 24-compatible majors.

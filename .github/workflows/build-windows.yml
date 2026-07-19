@@ -13,9 +13,9 @@ jobs:
       contents: write
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: "10.0.x"
 
@@ -47,7 +47,7 @@ jobs:
             ".\Release\DoubleGScanner-portable-win-x64.zip.sha256.txt" -Encoding ascii
 
       - name: Upload installer artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: DoubleGScanner-installer
           path: |
@@ -55,7 +55,7 @@ jobs:
             Release\Installer\*.sha256.txt
 
       - name: Upload portable artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: DoubleGScanner-portable-win-x64
           path: |

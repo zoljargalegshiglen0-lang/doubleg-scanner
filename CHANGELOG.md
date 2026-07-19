@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.9.1
+- Fixed all ReadOnlySpan/yield compiler errors in the raw signature scanner.
+- Fixed the missing SystemProfileCollector namespace in MainWindow.
+- Updated official GitHub Actions to Node.js 24-compatible majors.
+- Preserved the v1.9.0 MFT, USN Journal and free-cluster forensic behavior.
+
 ## 1.9.0
 - Fixed the hidden/clipped Forensic Scan selection.
 - Added automatic UAC restart prompt for Forensic Scan.
