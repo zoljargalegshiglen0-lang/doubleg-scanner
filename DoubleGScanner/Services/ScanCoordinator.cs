@@ -14,11 +14,15 @@ public sealed class ScanCoordinator
 
     public async Task<ScanResult> RunAsync(ScanMode mode,IProgress<ScanProgressUpdate>? progress,CancellationToken token)
     {
+        // Ensure callers never execute the synchronous prefix of a collector
+        // directly on a WPF dispatcher thread.
+        await Task.Yield();
+
         DateTimeOffset started=DateTimeOffset.Now;string temp=Path.Combine(Path.GetTempPath(),"DoubleGScanner",Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(temp);
         try
         {
-            RuleSet rules=await RuleLoader.LoadAsync(token);var ctx=new ScanContext{Mode=mode,Rules=rules,TempDirectory=temp,StartedAt=started};
+            RuleSet rules=await RuleLoader.LoadAsync(token).ConfigureAwait(false);var ctx=new ScanContext{Mode=mode,Rules=rules,TempDirectory=temp,StartedAt=started};
             var evidence=new List<EvidenceRecord>();var coverage=new List<ScanCoverage>();int index=0,supported=collectors.Count(x=>x.Supports(mode));
             foreach(IScanCollector collector in collectors)
             {
@@ -27,7 +31,7 @@ public sealed class ScanCoordinator
                 progress?.Report(new(){Percent=Math.Min(92,2+(int)((index-1)/(double)Math.Max(1,supported)*88)),Module=collector.Name,Message=$"Starting {collector.Name}...",ItemsChecked=evidence.Count});
                 try
                 {
-                    CollectorOutput output=await collector.CollectAsync(ctx,progress,token);evidence.AddRange(output.Evidence);
+                    CollectorOutput output=await collector.CollectAsync(ctx,progress,token).ConfigureAwait(false);evidence.AddRange(output.Evidence);
                     coverage.Add(new(){Module=output.Module,Status=output.Status,Summary=output.Summary,ItemsChecked=output.ItemsChecked,Duration=output.Duration});
                 }
                 catch(OperationCanceledException){throw;}

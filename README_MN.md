@@ -1,4 +1,4 @@
-# DoubleG Scanner v2.1.7
+# DoubleG Scanner v2.1.8
 
 ## New Forensic Scan
 
@@ -144,3 +144,11 @@ user, DoubleG Scanner offers to restart through Windows UAC.
 - Deep hash/signature/static/archive inspection only for relevant candidates.
 - Approximate disk-stage limits: Quick 75 seconds, Full 3 minutes, Forensic 5 minutes.
 - Per-drive and per-file limits prevent one disk or one large archive from freezing progress.
+
+
+## v2.1.8 responsive background scan
+
+- Scan collectors now run outside the WPF UI dispatcher thread.
+- PDF/JSON report generation also runs in the background.
+- The window remains movable and Cancel remains responsive during disk enumeration.
+- Scan coverage and detection behavior are unchanged.

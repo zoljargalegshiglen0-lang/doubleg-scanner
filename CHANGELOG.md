@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.1.8
+- Fixed the WPF window entering Windows `Not Responding` state during long metadata enumeration.
+- Moved the entire scan coordinator to a background thread.
+- Moved local PDF/JSON report generation to a background thread.
+- Kept `Progress<T>` UI updates marshalled safely to the WPF dispatcher.
+- Coalesced bursty progress events to reduce dispatcher pressure.
+- Added immediate `Cancelling scan` UI feedback and disabled repeated cancel clicks.
+- Added context-independent coordinator awaits and an initial asynchronous yield.
+- Did not reduce all-disk coverage, cheat-family rules, browser recovery, disk-forensic modules, or kernel integration.
+
 ## 2.1.7
 - Reworked the all-disk collector into a two-stage fast metadata sweep plus selective deep inspection.
 - Stopped hashing, signature-checking, and static-analyzing every ordinary Windows and Program Files binary.

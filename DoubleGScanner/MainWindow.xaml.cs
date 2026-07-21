@@ -183,33 +183,103 @@ public partial class MainWindow : Window
         SetScanning(true);
         ResetUi();
 
+        CancellationToken scanToken =
+            cancellation.Token;
+
+        DateTime lastUiProgress =
+            DateTime.MinValue;
+
+        ScanProgressUpdate? pendingUiUpdate =
+            null;
+
         var progress = new Progress<ScanProgressUpdate>(update =>
         {
-            int percent = Math.Clamp(update.Percent, 0, 100);
-            ScanProgress.Value = percent;
-            ProgressText.Text = $"{percent}%";
-            LiveModuleText.Text = update.Module;
-            LiveStatusText.Text = update.Message;
-            ItemsCheckedText.Text = $"Items checked: {update.ItemsChecked:N0}";
+            // Coalesce bursty collector updates. The final update and updates
+            // that change the module are still shown immediately.
+            bool moduleChanged =
+                !string.Equals(
+                    LiveModuleText.Text,
+                    update.Module,
+                    StringComparison.Ordinal);
 
-            if (update.Findings > 0)
-                FindingCountText.Text = update.Findings.ToString("N0");
+            bool immediate =
+                moduleChanged ||
+                update.Percent >= 94 ||
+                DateTime.UtcNow - lastUiProgress >=
+                    TimeSpan.FromMilliseconds(180);
+
+            pendingUiUpdate = update;
+
+            if (!immediate)
+                return;
+
+            ScanProgressUpdate visible =
+                pendingUiUpdate;
+
+            pendingUiUpdate = null;
+            lastUiProgress =
+                DateTime.UtcNow;
+
+            int percent =
+                Math.Clamp(
+                    visible.Percent,
+                    0,
+                    100);
+
+            ScanProgress.Value =
+                percent;
+
+            ProgressText.Text =
+                $"{percent}%";
+
+            LiveModuleText.Text =
+                visible.Module;
+
+            LiveStatusText.Text =
+                visible.Message;
+
+            ItemsCheckedText.Text =
+                $"Items checked: {visible.ItemsChecked:N0}";
+
+            if (visible.Findings > 0)
+            {
+                FindingCountText.Text =
+                    visible.Findings.ToString("N0");
+            }
         });
 
         try
         {
-            StatusTitle.Text = "Integrity analysis in progress";
+            StatusTitle.Text =
+                "Integrity analysis in progress";
+
             StatusDescription.Text =
-                "Keep DoubleG Scanner open while local collectors finish.";
+                "The scan is running in the background. You can move the window or cancel safely.";
 
-            ScanResult result = await coordinator.RunAsync(
-                mode,
-                progress,
-                cancellation.Token);
+            ScanResult result =
+                await Task.Run(
+                    async () =>
+                        await coordinator.RunAsync(
+                            mode,
+                            progress,
+                            scanToken)
+                            .ConfigureAwait(false),
+                    scanToken);
 
-            lastReport = await reports.CreateAsync(
-                result,
-                cancellation.Token);
+            LiveModuleText.Text =
+                "Report generation";
+
+            LiveStatusText.Text =
+                "Generating local PDF and JSON report in the background...";
+
+            lastReport =
+                await Task.Run(
+                    async () =>
+                        await reports.CreateAsync(
+                            result,
+                            scanToken)
+                            .ConfigureAwait(false),
+                    scanToken);
 
             ShowResult(result);
         }
@@ -331,15 +401,38 @@ public partial class MainWindow : Window
         StartScanButton.IsEnabled =
             !scanning && ConsentCheckBox.IsChecked == true;
 
-        CancelButton.IsEnabled = scanning;
+        CancelButton.IsEnabled =
+            scanning &&
+            cancellation?.IsCancellationRequested != true;
+
         QuickMode.IsEnabled = !scanning;
         FullMode.IsEnabled = !scanning;
         ForensicMode.IsEnabled = !scanning;
         ConsentCheckBox.IsEnabled = !scanning;
     }
 
-    private void CancelButton_Click(object sender, RoutedEventArgs e) =>
-        cancellation?.Cancel();
+    private void CancelButton_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        if (cancellation is null ||
+            cancellation.IsCancellationRequested)
+            return;
+
+        cancellation.Cancel();
+
+        CancelButton.IsEnabled =
+            false;
+
+        StatusTitle.Text =
+            "Cancelling scan";
+
+        StatusDescription.Text =
+            "Waiting for the current read-only operation to stop safely.";
+
+        LiveStatusText.Text =
+            "Cancellation requested. Finishing the current bounded file or system operation...";
+    }
 
     private void ConsentCheckBox_Changed(
         object sender,

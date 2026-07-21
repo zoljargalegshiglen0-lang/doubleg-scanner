@@ -1,6 +1,6 @@
 {
   "product": "DoubleG Scanner",
-  "version": "2.1.7",
+  "version": "2.1.8",
   "network_upload": false,
   "telemetry": false,
   "background_service": false,
@@ -166,5 +166,12 @@
     "all_ready_fixed_and_removable_volumes_attempted": true,
     "component_cache_exclusions_quick_full": true,
     "read_only": true
+  },
+  "ui_responsiveness": {
+    "scan_coordinator_background_thread": true,
+    "report_generation_background_thread": true,
+    "progress_updates_coalesced": true,
+    "cancel_button_immediate_ui_feedback": true,
+    "scan_scope_reduced": false
   }
 }
