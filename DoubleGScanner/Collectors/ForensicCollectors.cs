@@ -595,173 +595,278 @@ public sealed class FileArtifactCollector : IScanCollector
     public string Name => "Downloaded and local file scan";
     public bool Supports(ScanMode mode) => true;
 
-    private static readonly HashSet<string> Extensions = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ".exe", ".dll", ".sys", ".com", ".scr", ".msi", ".bat", ".cmd", ".ps1", ".vbs", ".js",
-        ".zip", ".rar", ".7z", ".jar", ".iso", ".img", ".lnk", ".url"
-    };
-
-    private static readonly HashSet<string> BinaryExtensions = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ".exe", ".dll", ".sys", ".com", ".scr", ".msi"
-    };
-
-    private static readonly HashSet<string> ArchiveExtensions = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ".zip", ".rar", ".7z", ".jar", ".iso", ".img"
-    };
-
-    private static readonly HashSet<string> ArchivePayloadExtensions = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ".exe", ".dll", ".sys", ".com", ".scr", ".msi", ".bat", ".cmd", ".ps1", ".vbs", ".js",
-        ".zip", ".rar", ".7z", ".jar", ".iso", ".img"
-    };
-
-    public async Task<CollectorOutput> CollectAsync(ScanContext context, IProgress<ScanProgressUpdate>? progress, CancellationToken token)
-    {
-        DateTime started = DateTime.UtcNow;
-        var evidence = new List<EvidenceRecord>();
-        int checkedCount = 0;
-        bool partial = false;
-
-        int max = context.Mode switch
+    private static readonly HashSet<string> Extensions =
+        new(StringComparer.OrdinalIgnoreCase)
         {
-            ScanMode.Quick => 40_000,
-            ScanMode.Full => 150_000,
-            _ => 300_000
+            ".exe", ".dll", ".sys", ".com", ".scr", ".msi",
+            ".bat", ".cmd", ".ps1", ".vbs", ".js",
+            ".zip", ".rar", ".7z", ".jar", ".iso", ".img",
+            ".lnk", ".url"
         };
 
-        int days = context.Mode switch
+    private static readonly HashSet<string> BinaryExtensions =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            ".exe", ".dll", ".sys", ".com", ".scr", ".msi"
+        };
+
+    private static readonly HashSet<string> ArchiveExtensions =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            ".zip", ".rar", ".7z", ".jar", ".iso", ".img"
+        };
+
+    private static readonly HashSet<string> ArchivePayloadExtensions =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            ".exe", ".dll", ".sys", ".com", ".scr", ".msi",
+            ".bat", ".cmd", ".ps1", ".vbs", ".js",
+            ".zip", ".rar", ".7z", ".jar", ".iso", ".img"
+        };
+
+    private static readonly EnumerationOptions EnumerationSettings =
+        new()
+        {
+            IgnoreInaccessible = true,
+            RecurseSubdirectories = false,
+            ReturnSpecialDirectories = false,
+            AttributesToSkip =
+                FileAttributes.ReparsePoint |
+                FileAttributes.Offline
+        };
+
+    public async Task<CollectorOutput> CollectAsync(
+        ScanContext context,
+        IProgress<ScanProgressUpdate>? progress,
+        CancellationToken token)
+    {
+        DateTime started = DateTime.UtcNow;
+        DateTime lastProgress = DateTime.MinValue;
+
+        var evidence = new List<EvidenceRecord>();
+        var seenFiles =
+            new HashSet<string>(
+                StringComparer.OrdinalIgnoreCase);
+
+        int metadataCandidates = 0;
+        int deepInspected = 0;
+        int volumeRootsVisited = 0;
+        int timedOutFiles = 0;
+        bool partial = false;
+        bool stoppedByGlobalLimit = false;
+
+        int metadataLimit = context.Mode switch
+        {
+            ScanMode.Quick => 120_000,
+            ScanMode.Full => 400_000,
+            _ => 900_000
+        };
+
+        int deepInspectionLimit = context.Mode switch
+        {
+            ScanMode.Quick => 2_500,
+            ScanMode.Full => 10_000,
+            _ => 25_000
+        };
+
+        TimeSpan totalTimeLimit = context.Mode switch
+        {
+            ScanMode.Quick => TimeSpan.FromSeconds(75),
+            ScanMode.Full => TimeSpan.FromMinutes(3),
+            _ => TimeSpan.FromMinutes(5)
+        };
+
+        TimeSpan priorityRootLimit = context.Mode switch
+        {
+            ScanMode.Quick => TimeSpan.FromSeconds(20),
+            ScanMode.Full => TimeSpan.FromSeconds(40),
+            _ => TimeSpan.FromSeconds(60)
+        };
+
+        TimeSpan perFileTimeout = context.Mode switch
+        {
+            ScanMode.Quick => TimeSpan.FromSeconds(4),
+            ScanMode.Full => TimeSpan.FromSeconds(8),
+            _ => TimeSpan.FromSeconds(12)
+        };
+
+        long maximumDeepFileSize = context.Mode switch
+        {
+            ScanMode.Quick => 128L * 1024 * 1024,
+            ScanMode.Full => 384L * 1024 * 1024,
+            _ => 512L * 1024 * 1024
+        };
+
+        long maximumArchiveInspectionSize = context.Mode switch
+        {
+            ScanMode.Quick => 256L * 1024 * 1024,
+            ScanMode.Full => 768L * 1024 * 1024,
+            _ => 1536L * 1024 * 1024
+        };
+
+        int recentDays = context.Mode switch
         {
             ScanMode.Quick => 180,
             ScanMode.Full => 1_095,
             _ => int.MaxValue
         };
 
-        TimeSpan totalTimeLimit = context.Mode switch
-        {
-            ScanMode.Quick => TimeSpan.FromMinutes(3),
-            ScanMode.Full => TimeSpan.FromMinutes(12),
-            _ => TimeSpan.FromMinutes(25)
-        };
-
-        int perRootCandidateLimit = context.Mode switch
-        {
-            ScanMode.Quick => 30_000,
-            ScanMode.Full => 120_000,
-            _ => 250_000
-        };
-
-        bool recursive = true;
         DateTime cutoff = context.Mode == ScanMode.Forensic
             ? DateTime.MinValue
-            : DateTime.UtcNow.AddDays(-days);
+            : DateTime.UtcNow.AddDays(-recentDays);
 
-        string user = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        string downloads = Path.Combine(user, "Downloads");
-        string desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
-        string temp = Path.GetTempPath();
-        string localTemp = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Temp");
+        string user =
+            Environment.GetFolderPath(
+                Environment.SpecialFolder.UserProfile);
 
-        var roots = new List<(string Path, string Location)>
-        {
-            (downloads, "Downloads"),
-            (desktop, "Desktop"),
-            (temp, "Temporary files"),
-            (localTemp, "Local temporary files")
-        };
+        string downloads =
+            Path.Combine(
+                user,
+                "Downloads");
 
-        foreach (DriveInfo drive in
-                 DriveInfo.GetDrives()
-                     .Where(item =>
-                         item.IsReady &&
-                         item.DriveType is
-                             DriveType.Fixed or
-                             DriveType.Removable))
-        {
-            roots.Add((
-                drive.RootDirectory.FullName,
-                $"{drive.DriveType} disk {drive.Name}"));
-        }
+        string desktop =
+            Environment.GetFolderPath(
+                Environment.SpecialFolder.DesktopDirectory);
 
-        var seenFiles =
-            new HashSet<string>(
-                StringComparer.OrdinalIgnoreCase);
+        string temp =
+            Path.GetTempPath();
 
-        bool stopAll = false;
-        int volumeRootsVisited = 0;
+        string localTemp =
+            Path.Combine(
+                Environment.GetFolderPath(
+                    Environment.SpecialFolder.LocalApplicationData),
+                "Temp");
 
-        foreach ((string root, string location) in roots
+        string windows =
+            Environment.GetFolderPath(
+                Environment.SpecialFolder.Windows);
+
+        string programFiles =
+            Environment.GetFolderPath(
+                Environment.SpecialFolder.ProgramFiles);
+
+        string programFilesX86 =
+            Environment.GetFolderPath(
+                Environment.SpecialFolder.ProgramFilesX86);
+
+        DriveInfo[] drives =
+            DriveInfo.GetDrives()
+                .Where(item =>
+                    item.IsReady &&
+                    item.DriveType is
+                        DriveType.Fixed or
+                        DriveType.Removable)
+                .ToArray();
+
+        var roots =
+            new List<ScanRoot>
+            {
+                new(downloads, "Downloads", false),
+                new(desktop, "Desktop", false),
+                new(temp, "Temporary files", false),
+                new(localTemp, "Local temporary files", false)
+            };
+
+        roots.AddRange(
+            drives.Select(drive =>
+                new ScanRoot(
+                    drive.RootDirectory.FullName,
+                    $"{drive.DriveType} disk {drive.Name}",
+                    true)));
+
+        TimeSpan perVolumeRootLimit =
+            drives.Length == 0
+                ? totalTimeLimit
+                : TimeSpan.FromTicks(
+                    Math.Max(
+                        TimeSpan.FromSeconds(25).Ticks,
+                        (long)(
+                            totalTimeLimit.Ticks *
+                            0.72 /
+                            drives.Length)));
+
+        foreach (ScanRoot scanRoot in roots
                      .Where(item =>
                          !string.IsNullOrWhiteSpace(
                              item.Path))
                      .DistinctBy(
                          item =>
-                             Path.GetFullPath(
-                                 item.Path),
+                             Path.GetFullPath(item.Path),
                          StringComparer.OrdinalIgnoreCase))
         {
-            if (!Directory.Exists(root))
+            token.ThrowIfCancellationRequested();
+
+            if (!Directory.Exists(scanRoot.Path))
                 continue;
 
-            bool volumeRoot =
-                Path.GetPathRoot(root)
-                    ?.TrimEnd('\\')
-                    .Equals(
-                        root.TrimEnd('\\'),
-                        StringComparison.OrdinalIgnoreCase) ==
-                true;
+            if (DateTime.UtcNow - started >= totalTimeLimit ||
+                metadataCandidates >= metadataLimit)
+            {
+                partial = true;
+                stoppedByGlobalLimit = true;
+                break;
+            }
 
-            if (volumeRoot)
+            if (scanRoot.IsVolumeRoot)
                 volumeRootsVisited++;
 
-            int rootCandidates = 0;
+            DateTime rootStarted = DateTime.UtcNow;
 
-            progress?.Report(new ScanProgressUpdate
-            {
-                Percent =
-                    context.Mode == ScanMode.Quick
-                        ? 72
-                        : 81,
-                Module = Name,
-                Message =
-                    $"Searching executable, archive, shortcut, and named-family artifacts in {location}",
-                ItemsChecked =
-                    checkedCount
-            });
+            TimeSpan rootTimeLimit =
+                scanRoot.IsVolumeRoot
+                    ? perVolumeRootLimit
+                    : priorityRootLimit;
+
+            progress?.Report(
+                new ScanProgressUpdate
+                {
+                    Percent =
+                        ComputeProgressPercent(
+                            context.Mode,
+                            DateTime.UtcNow - started,
+                            totalTimeLimit,
+                            metadataCandidates,
+                            metadataLimit),
+                    Module = Name,
+                    Message =
+                        $"Fast metadata sweep in {scanRoot.Location}",
+                    ItemsChecked = metadataCandidates
+                });
 
             try
             {
                 foreach (string file in
                          EnumerateFiles(
-                             root,
-                             recursive))
+                             scanRoot.Path,
+                             context.Mode))
                 {
                     token.ThrowIfCancellationRequested();
 
-                    if (
-                        checkedCount >= max ||
-                        rootCandidates >=
-                        perRootCandidateLimit ||
-                        DateTime.UtcNow - started >=
-                        totalTimeLimit)
+                    TimeSpan totalElapsed =
+                        DateTime.UtcNow - started;
+
+                    TimeSpan rootElapsed =
+                        DateTime.UtcNow - rootStarted;
+
+                    if (totalElapsed >= totalTimeLimit ||
+                        metadataCandidates >= metadataLimit)
                     {
                         partial = true;
-                        stopAll =
-                            checkedCount >= max ||
-                            DateTime.UtcNow - started >=
-                            totalTimeLimit;
+                        stoppedByGlobalLimit = true;
+                        break;
+                    }
+
+                    if (rootElapsed >= rootTimeLimit)
+                    {
+                        partial = true;
                         break;
                     }
 
                     string extension =
                         Path.GetExtension(file);
 
-                    if (!Extensions.Contains(
-                            extension))
+                    if (!Extensions.Contains(extension))
                         continue;
-
-                    rootCandidates++;
 
                     string fullPath;
 
@@ -778,12 +883,14 @@ public sealed class FileArtifactCollector : IScanCollector
                     if (!seenFiles.Add(fullPath))
                         continue;
 
+                    metadataCandidates++;
+
                     FileInfo info;
 
                     try
                     {
                         info =
-                            new FileInfo(file);
+                            new FileInfo(fullPath);
                     }
                     catch
                     {
@@ -798,131 +905,334 @@ public sealed class FileArtifactCollector : IScanCollector
                             fullPath,
                             context.Rules);
 
-                    if (
-                        namedPath is null &&
-                        info.LastWriteTimeUtc <
-                        cutoff)
-                        continue;
+                    bool highPath =
+                        RuleMatcher.ContainsHigh(
+                            fullPath,
+                            context.Rules);
 
-                    checkedCount++;
+                    bool mediumPath =
+                        RuleMatcher.ContainsMedium(
+                            fullPath,
+                            context.Rules);
 
                     bool isBinary =
-                        BinaryExtensions.Contains(
-                            extension);
+                        BinaryExtensions.Contains(extension);
 
                     bool isArchive =
-                        ArchiveExtensions.Contains(
-                            extension);
-
-                    bool isRecent =
-                        info.LastWriteTimeUtc >=
-                        DateTime.UtcNow.AddDays(-30);
+                        ArchiveExtensions.Contains(extension);
 
                     bool isDownload =
                         IsUnderPath(
                             fullPath,
                             downloads);
 
-                    string effectiveLocation =
-                        isDownload
-                            ? "Downloads"
-                            : location;
+                    bool isUserWritable =
+                        RuleMatcher.IsUserWritable(
+                            fullPath);
 
-                    string? hash = null;
-                    SignatureResult? signature = null;
-                    StaticAnalysisResult staticResult = StaticAnalysisResult.Empty;
-                    ArchiveInspection archive = ArchiveInspection.Empty;
+                    bool isSystemLocation =
+                        IsUnderPath(
+                            fullPath,
+                            windows) ||
+                        IsUnderPath(
+                            fullPath,
+                            programFiles) ||
+                        IsUnderPath(
+                            fullPath,
+                            programFilesX86);
 
-                    if (isBinary)
+                    bool recentForMode =
+                        info.LastWriteTimeUtc >= cutoff;
+
+                    bool recent30Days =
+                        info.LastWriteTimeUtc >=
+                        DateTime.UtcNow.AddDays(-30);
+
+                    bool namedOrKeyword =
+                        namedPath is not null ||
+                        highPath ||
+                        mediumPath;
+
+                    bool shouldDeepInspect =
+                        namedOrKeyword ||
+                        isDownload ||
+                        (
+                            isUserWritable &&
+                            (
+                                recentForMode ||
+                                context.Mode != ScanMode.Quick
+                            )
+                        ) ||
+                        (
+                            isArchive &&
+                            isUserWritable
+                        ) ||
+                        (
+                            context.Mode == ScanMode.Forensic &&
+                            recent30Days &&
+                            !isSystemLocation
+                        );
+
+                    // All disks are still searched by path/filename. Expensive
+                    // file content analysis is reserved for candidates that can
+                    // reasonably affect a verdict.
+                    if (!shouldDeepInspect)
                     {
-                        signature = SignatureVerifier.Verify(file);
-                        hash = await HashService.TrySha256Async(file, token);
-                        staticResult = await StaticFileAnalyzer.AnalyzeFileAsync(file, token);
-                    }
-                    else if (extension.Equals(".zip", StringComparison.OrdinalIgnoreCase) ||
-                             extension.Equals(".jar", StringComparison.OrdinalIgnoreCase))
-                    {
-                        hash = await HashService.TrySha256Async(file, token);
-                        archive = await InspectZipAsync(file, context.Rules, token);
-                    }
-                    else if (isArchive)
-                    {
-                        hash = await HashService.TrySha256Async(file, token);
-                        archive = new ArchiveInspection(0, 0, 0, Array.Empty<string>(), true,
-                            "Archive contents require Microsoft Defender or an external archive parser.");
+                        ReportProgressIfNeeded(
+                            progress,
+                            context.Mode,
+                            started,
+                            totalTimeLimit,
+                            metadataCandidates,
+                            metadataLimit,
+                            deepInspected,
+                            scanRoot.Location,
+                            ref lastProgress);
+
+                        continue;
                     }
 
-                    string combined = string.Join(" ", new[] { file }.Concat(archive.Indicators).Concat(staticResult.Indicators));
-                    bool known = RuleMatcher.IsKnownHash(hash, context.Rules);
+                    bool deepBudgetAvailable =
+                        deepInspected <
+                        deepInspectionLimit;
+
+                    InspectionResult inspection;
+
+                    if (deepBudgetAvailable)
+                    {
+                        deepInspected++;
+
+                        inspection =
+                            await InspectCandidateAsync(
+                                info,
+                                extension,
+                                isBinary,
+                                isArchive,
+                                namedOrKeyword,
+                                context,
+                                maximumDeepFileSize,
+                                maximumArchiveInspectionSize,
+                                perFileTimeout,
+                                token);
+
+                        if (inspection.TimedOut)
+                            timedOutFiles++;
+                    }
+                    else
+                    {
+                        partial = true;
+
+                        inspection =
+                            InspectionResult.Skipped(
+                                "Deep inspection limit reached; filename/path evidence was retained.");
+                    }
+
+                    string combined =
+                        string.Join(
+                            " ",
+                            new[] { fullPath }
+                                .Concat(
+                                    inspection.Archive.Indicators)
+                                .Concat(
+                                    inspection.StaticResult.Indicators));
+
+                    bool knownHash =
+                        RuleMatcher.IsKnownHash(
+                            inspection.Hash,
+                            context.Rules);
+
                     bool namedCheat =
                         namedPath is not null ||
                         RuleMatcher.FindKnownCheatName(
                             combined,
                             context.Rules) is not null;
-                    bool highKeyword = RuleMatcher.ContainsHigh(combined, context.Rules);
-                    bool mediumKeyword = RuleMatcher.ContainsMedium(combined, context.Rules);
-                    bool unsignedUserBinary = isBinary && signature?.IsValid != true && RuleMatcher.IsUserWritable(file);
-                    bool strongStatic = staticResult.Score >= 45;
-                    bool archiveWithPayload = archive.ExecutableEntries > 0;
-                    bool strongArchive = archive.StaticScore >= 40 || archive.Indicators.Count > 0;
-                    bool recentOpaqueArchive = isArchive && archive.Unreadable && isDownload && isRecent;
-                    bool recentDownloadedBinary = isDownload && isRecent && unsignedUserBinary;
-                    bool recentDownloadedPayloadArchive = isDownload && isRecent && archiveWithPayload;
-                    // Keep recent Downloads candidates even when their names are generic. This lets browser/file
-                    // correlation and Defender evaluate a file that was downloaded but never executed.
-                    bool recentDownloadedCandidate = isDownload && isRecent && (isBinary || isArchive);
 
-                    bool relevant = known || namedCheat || highKeyword || strongStatic || strongArchive ||
-                                    recentDownloadedCandidate || recentDownloadedBinary || recentDownloadedPayloadArchive || recentOpaqueArchive ||
-                                    (mediumKeyword && (unsignedUserBinary || archiveWithPayload));
-                    if (!relevant) continue;
+                    bool highKeyword =
+                        RuleMatcher.ContainsHigh(
+                            combined,
+                            context.Rules);
 
-                    string detail = BuildDetail(signature, staticResult, archive, isArchive);
-                    var metadata = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                    bool mediumKeyword =
+                        RuleMatcher.ContainsMedium(
+                            combined,
+                            context.Rules);
+
+                    bool unsignedUserBinary =
+                        isBinary &&
+                        inspection.Signature?.IsValid != true &&
+                        isUserWritable;
+
+                    bool strongStatic =
+                        inspection.StaticResult.Score >= 45;
+
+                    bool archiveWithPayload =
+                        inspection.Archive.ExecutableEntries > 0;
+
+                    bool strongArchive =
+                        inspection.Archive.StaticScore >= 40 ||
+                        inspection.Archive.Indicators.Count > 0;
+
+                    bool recentOpaqueArchive =
+                        isArchive &&
+                        inspection.Archive.Unreadable &&
+                        isDownload &&
+                        recent30Days;
+
+                    bool recentDownloadedBinary =
+                        isDownload &&
+                        recent30Days &&
+                        unsignedUserBinary;
+
+                    bool recentDownloadedPayloadArchive =
+                        isDownload &&
+                        recent30Days &&
+                        archiveWithPayload;
+
+                    bool recentDownloadedCandidate =
+                        isDownload &&
+                        recent30Days &&
+                        (isBinary || isArchive);
+
+                    bool relevant =
+                        knownHash ||
+                        namedCheat ||
+                        highKeyword ||
+                        strongStatic ||
+                        strongArchive ||
+                        recentDownloadedCandidate ||
+                        recentDownloadedBinary ||
+                        recentDownloadedPayloadArchive ||
+                        recentOpaqueArchive ||
+                        (
+                            mediumKeyword &&
+                            (
+                                unsignedUserBinary ||
+                                archiveWithPayload
+                            )
+                        );
+
+                    if (!relevant)
                     {
-                        ["RecordType"] = isDownload ? "RecentDownloadArtifact" : "LocalFileArtifact",
-                        ["Location"] = effectiveLocation,
-                        ["VolumeRoot"] =
-                            Path.GetPathRoot(fullPath) ?? "",
-                        ["AllDiskSweep"] = "True",
-                        ["FileSize"] = info.Length.ToString(),
-                        ["Extension"] = extension,
-                        ["Created"] = info.CreationTime.ToString("O"),
-                        ["LastWrite"] = info.LastWriteTime.ToString("O"),
-                        ["Recent30Days"] = isRecent.ToString(),
-                        ["StaticRiskScore"] = staticResult.Score.ToString(),
-                        ["StaticIndicators"] = string.Join("; ", staticResult.Indicators),
-                        ["ArchiveEntryCount"] = archive.EntryCount.ToString(),
-                        ["ArchiveExecutableCount"] = archive.ExecutableEntries.ToString(),
-                        ["ArchiveStaticScore"] = archive.StaticScore.ToString(),
-                        ["ArchiveUnreadable"] = archive.Unreadable.ToString(),
-                        ["ArchiveIndicators"] = string.Join("; ", archive.Indicators)
-                    };
+                        ReportProgressIfNeeded(
+                            progress,
+                            context.Mode,
+                            started,
+                            totalTimeLimit,
+                            metadataCandidates,
+                            metadataLimit,
+                            deepInspected,
+                            scanRoot.Location,
+                            ref lastProgress);
 
-                    evidence.Add(new EvidenceRecord
-                    {
-                        Kind = EvidenceKind.FileArtifact,
-                        Source = Name,
-                        Name = info.Name,
-                        Path = info.FullName,
-                        HashSha256 = hash,
-                        Publisher = signature?.Publisher,
-                        IsSignatureValid = signature?.IsValid,
-                        Timestamp = info.LastWriteTime,
-                        Detail = detail,
-                        Metadata = metadata
-                    });
-
-                    if (checkedCount % 100 == 0)
-                    {
-                        progress?.Report(new ScanProgressUpdate
-                        {
-                            Percent = context.Mode == ScanMode.Quick ? 76 : 82,
-                            Module = Name,
-                            Message = $"Inspecting disk artifact {checkedCount:N0} in {location}",
-                            ItemsChecked = checkedCount
-                        });
+                        continue;
                     }
+
+                    string effectiveLocation =
+                        isDownload
+                            ? "Downloads"
+                            : scanRoot.Location;
+
+                    string detail =
+                        BuildDetail(
+                            inspection.Signature,
+                            inspection.StaticResult,
+                            inspection.Archive,
+                            isArchive,
+                            inspection.Note);
+
+                    var metadata =
+                        new Dictionary<string, string>(
+                            StringComparer.OrdinalIgnoreCase)
+                        {
+                            ["RecordType"] =
+                                isDownload
+                                    ? "RecentDownloadArtifact"
+                                    : "LocalFileArtifact",
+                            ["Location"] =
+                                effectiveLocation,
+                            ["VolumeRoot"] =
+                                Path.GetPathRoot(fullPath) ?? "",
+                            ["AllDiskSweep"] =
+                                "True",
+                            ["MetadataSweep"] =
+                                "True",
+                            ["DeepInspected"] =
+                                deepBudgetAvailable.ToString(),
+                            ["InspectionTimedOut"] =
+                                inspection.TimedOut.ToString(),
+                            ["InspectionNote"] =
+                                inspection.Note,
+                            ["FileSize"] =
+                                info.Length.ToString(),
+                            ["Extension"] =
+                                extension,
+                            ["Created"] =
+                                info.CreationTime.ToString("O"),
+                            ["LastWrite"] =
+                                info.LastWriteTime.ToString("O"),
+                            ["Recent30Days"] =
+                                recent30Days.ToString(),
+                            ["IsSystemLocation"] =
+                                isSystemLocation.ToString(),
+                            ["IsUserWritable"] =
+                                isUserWritable.ToString(),
+                            ["StaticRiskScore"] =
+                                inspection.StaticResult.Score.ToString(),
+                            ["StaticIndicators"] =
+                                string.Join(
+                                    "; ",
+                                    inspection.StaticResult.Indicators),
+                            ["ArchiveEntryCount"] =
+                                inspection.Archive.EntryCount.ToString(),
+                            ["ArchiveExecutableCount"] =
+                                inspection.Archive.ExecutableEntries.ToString(),
+                            ["ArchiveStaticScore"] =
+                                inspection.Archive.StaticScore.ToString(),
+                            ["ArchiveUnreadable"] =
+                                inspection.Archive.Unreadable.ToString(),
+                            ["ArchiveCapped"] =
+                                inspection.Archive.Capped.ToString(),
+                            ["ArchiveIndicators"] =
+                                string.Join(
+                                    "; ",
+                                    inspection.Archive.Indicators)
+                        };
+
+                    evidence.Add(
+                        new EvidenceRecord
+                        {
+                            Kind =
+                                EvidenceKind.FileArtifact,
+                            Source =
+                                Name,
+                            Name =
+                                info.Name,
+                            Path =
+                                info.FullName,
+                            HashSha256 =
+                                inspection.Hash,
+                            Publisher =
+                                inspection.Signature?.Publisher,
+                            IsSignatureValid =
+                                inspection.Signature?.IsValid,
+                            Timestamp =
+                                info.LastWriteTime,
+                            Detail =
+                                detail,
+                            Metadata =
+                                metadata
+                        });
+
+                    ReportProgressIfNeeded(
+                        progress,
+                        context.Mode,
+                        started,
+                        totalTimeLimit,
+                        metadataCandidates,
+                        metadataLimit,
+                        deepInspected,
+                        scanRoot.Location,
+                        ref lastProgress);
                 }
             }
             catch
@@ -930,26 +1240,268 @@ public sealed class FileArtifactCollector : IScanCollector
                 partial = true;
             }
 
-            if (stopAll)
+            if (stoppedByGlobalLimit)
                 break;
         }
+
+        string completionReason =
+            stoppedByGlobalLimit
+                ? "The mode time/item limit was reached."
+                : timedOutFiles > 0
+                    ? $"{timedOutFiles:N0} slow file(s) reached the per-file timeout."
+                    : "The bounded sweep completed.";
 
         return new CollectorOutput
         {
             Module = Name,
-            Status = checkedCount >= max || partial ? CoverageStatus.Partial : CoverageStatus.Completed,
-            Summary = $"Checked {checkedCount:N0} executable/archive/shortcut candidates across {volumeRootsVisited:N0} ready fixed or removable volume root(s) and retained {evidence.Count:N0} relevant items. Named-family paths are checked regardless of age; mode-specific caps and time limits prevent an endless scan.",
-            Evidence = evidence,
-            ItemsChecked = checkedCount,
-            Duration = DateTime.UtcNow - started
+            Status =
+                partial
+                    ? CoverageStatus.Partial
+                    : CoverageStatus.Completed,
+            Summary =
+                $"Fast-scanned {metadataCandidates:N0} executable/archive/shortcut candidates across {volumeRootsVisited:N0} ready fixed or removable volume root(s); deep-inspected {deepInspected:N0} relevant candidates and retained {evidence.Count:N0} evidence item(s). {completionReason}",
+            Evidence =
+                evidence,
+            ItemsChecked =
+                metadataCandidates,
+            Duration =
+                DateTime.UtcNow - started
         };
+    }
+
+    private static async Task<InspectionResult>
+        InspectCandidateAsync(
+            FileInfo info,
+            string extension,
+            bool isBinary,
+            bool isArchive,
+            bool namedOrKeyword,
+            ScanContext context,
+            long maximumDeepFileSize,
+            long maximumArchiveInspectionSize,
+            TimeSpan timeout,
+            CancellationToken outerToken)
+    {
+        SignatureResult? signature = null;
+        string? hash = null;
+        StaticAnalysisResult staticResult =
+            StaticAnalysisResult.Empty;
+        ArchiveInspection archive =
+            ArchiveInspection.Empty;
+        bool timedOut = false;
+        string note = "";
+
+        using var timeoutSource =
+            CancellationTokenSource.CreateLinkedTokenSource(
+                outerToken);
+
+        timeoutSource.CancelAfter(timeout);
+
+        try
+        {
+            CancellationToken token =
+                timeoutSource.Token;
+
+            if (isBinary)
+            {
+                signature =
+                    SignatureVerifier.Verify(
+                        info.FullName);
+
+                if (
+                    info.Length <=
+                    maximumDeepFileSize)
+                {
+                    hash =
+                        await HashService.TrySha256Async(
+                            info.FullName,
+                            token);
+
+                    staticResult =
+                        await StaticFileAnalyzer.AnalyzeFileAsync(
+                            info.FullName,
+                            token);
+                }
+                else
+                {
+                    note =
+                        $"Deep content analysis skipped because the binary is larger than {maximumDeepFileSize / (1024 * 1024):N0} MB.";
+                }
+            }
+            else if (
+                extension.Equals(
+                    ".zip",
+                    StringComparison.OrdinalIgnoreCase) ||
+                extension.Equals(
+                    ".jar",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                if (
+                    info.Length <=
+                    maximumArchiveInspectionSize)
+                {
+                    hash =
+                        info.Length <=
+                        maximumDeepFileSize
+                            ? await HashService.TrySha256Async(
+                                info.FullName,
+                                token)
+                            : null;
+
+                    archive =
+                        await InspectZipAsync(
+                            info.FullName,
+                            context.Rules,
+                            context.Mode,
+                            token);
+                }
+                else
+                {
+                    archive =
+                        new ArchiveInspection(
+                            0,
+                            0,
+                            0,
+                            Array.Empty<string>(),
+                            true,
+                            true,
+                            $"Archive content inspection skipped because the file is larger than {maximumArchiveInspectionSize / (1024 * 1024):N0} MB.");
+                }
+            }
+            else if (isArchive)
+            {
+                if (
+                    info.Length <=
+                    maximumDeepFileSize &&
+                    namedOrKeyword)
+                {
+                    hash =
+                        await HashService.TrySha256Async(
+                            info.FullName,
+                            token);
+                }
+
+                archive =
+                    new ArchiveInspection(
+                        0,
+                        0,
+                        0,
+                        Array.Empty<string>(),
+                        true,
+                        false,
+                        "Archive contents require Microsoft Defender or a supported archive parser.");
+            }
+        }
+        catch (OperationCanceledException)
+            when (!outerToken.IsCancellationRequested)
+        {
+            timedOut = true;
+            note =
+                $"Deep inspection exceeded the {timeout.TotalSeconds:N0}-second per-file limit.";
+        }
+        catch
+        {
+            note =
+                "Deep inspection failed safely; filename and metadata evidence remain available.";
+        }
+
+        return new InspectionResult(
+            signature,
+            hash,
+            staticResult,
+            archive,
+            timedOut,
+            note);
+    }
+
+    private static void ReportProgressIfNeeded(
+        IProgress<ScanProgressUpdate>? progress,
+        ScanMode mode,
+        DateTime started,
+        TimeSpan totalTimeLimit,
+        int metadataCandidates,
+        int metadataLimit,
+        int deepInspected,
+        string location,
+        ref DateTime lastProgress)
+    {
+        DateTime now =
+            DateTime.UtcNow;
+
+        if (
+            now - lastProgress <
+            TimeSpan.FromSeconds(1))
+            return;
+
+        lastProgress = now;
+
+        progress?.Report(
+            new ScanProgressUpdate
+            {
+                Percent =
+                    ComputeProgressPercent(
+                        mode,
+                        now - started,
+                        totalTimeLimit,
+                        metadataCandidates,
+                        metadataLimit),
+                Module =
+                    "Downloaded and local file scan",
+                Message =
+                    $"Fast disk sweep: {metadataCandidates:N0} candidates, {deepInspected:N0} deep checks — {location}",
+                ItemsChecked =
+                    metadataCandidates
+            });
+    }
+
+    private static int ComputeProgressPercent(
+        ScanMode mode,
+        TimeSpan elapsed,
+        TimeSpan timeLimit,
+        int metadataCandidates,
+        int metadataLimit)
+    {
+        int start = mode == ScanMode.Quick
+            ? 72
+            : 81;
+
+        int end = 89;
+
+        double timeRatio =
+            Math.Clamp(
+                elapsed.TotalMilliseconds /
+                Math.Max(
+                    1,
+                    timeLimit.TotalMilliseconds),
+                0,
+                1);
+
+        double itemRatio =
+            Math.Clamp(
+                metadataCandidates /
+                (double)Math.Max(
+                    1,
+                    metadataLimit),
+                0,
+                1);
+
+        double ratio =
+            Math.Max(
+                timeRatio,
+                itemRatio);
+
+        return start +
+               (int)Math.Round(
+                   (end - start) *
+                   ratio);
     }
 
     private static bool IsUnderPath(
         string candidate,
         string root)
     {
-        if (string.IsNullOrWhiteSpace(candidate) ||
+        if (
+            string.IsNullOrWhiteSpace(candidate) ||
             string.IsNullOrWhiteSpace(root))
             return false;
 
@@ -975,111 +1527,390 @@ public sealed class FileArtifactCollector : IScanCollector
         }
     }
 
-    private static string BuildDetail(SignatureResult? signature, StaticAnalysisResult staticResult, ArchiveInspection archive, bool isArchive)
+    private static string BuildDetail(
+        SignatureResult? signature,
+        StaticAnalysisResult staticResult,
+        ArchiveInspection archive,
+        bool isArchive,
+        string inspectionNote)
     {
-        var parts = new List<string>();
-        if (signature is not null) parts.Add(signature.Status);
-        if (staticResult.Score > 0) parts.Add($"Static score {staticResult.Score}/100: {string.Join(", ", staticResult.Indicators.Take(6))}");
+        var parts =
+            new List<string>();
+
+        if (signature is not null)
+            parts.Add(signature.Status);
+
+        if (staticResult.Score > 0)
+        {
+            parts.Add(
+                $"Static score {staticResult.Score}/100: " +
+                string.Join(
+                    ", ",
+                    staticResult.Indicators.Take(6)));
+        }
+
         if (isArchive)
         {
-            parts.Add($"Archive entries: {archive.EntryCount}; executable/script payloads: {archive.ExecutableEntries}");
-            if (archive.StaticScore > 0) parts.Add($"Embedded static score: {archive.StaticScore}/100");
-            if (archive.Indicators.Count > 0) parts.Add(string.Join(", ", archive.Indicators.Take(8)));
-            if (archive.Unreadable) parts.Add(archive.Note);
+            parts.Add(
+                $"Archive entries: {archive.EntryCount}; executable/script payloads: {archive.ExecutableEntries}");
+
+            if (archive.StaticScore > 0)
+            {
+                parts.Add(
+                    $"Embedded static score: {archive.StaticScore}/100");
+            }
+
+            if (archive.Indicators.Count > 0)
+            {
+                parts.Add(
+                    string.Join(
+                        ", ",
+                        archive.Indicators.Take(8)));
+            }
+
+            if (
+                archive.Unreadable ||
+                archive.Capped)
+            {
+                parts.Add(archive.Note);
+            }
         }
-        return parts.Count == 0 ? "Recent file metadata" : string.Join(" | ", parts);
+
+        if (!string.IsNullOrWhiteSpace(
+                inspectionNote))
+        {
+            parts.Add(inspectionNote);
+        }
+
+        return parts.Count == 0
+            ? "Filename/path and recent file metadata"
+            : string.Join(
+                " | ",
+                parts);
     }
 
-    private static IEnumerable<string> EnumerateFiles(string root, bool recursive)
+    private static IEnumerable<string> EnumerateFiles(
+        string root,
+        ScanMode mode)
     {
-        if (!recursive)
-        {
-            string[] top;
-            try { top = Directory.GetFiles(root); }
-            catch { top = Array.Empty<string>(); }
-            foreach (string file in top) yield return file;
+        var stack =
+            new Stack<string>();
 
-            string[] firstLevel;
-            try { firstLevel = Directory.GetDirectories(root); }
-            catch { firstLevel = Array.Empty<string>(); }
-            foreach (string directory in firstLevel.Take(100))
-            {
-                string[] files;
-                try { files = Directory.GetFiles(directory); }
-                catch { files = Array.Empty<string>(); }
-                foreach (string file in files) yield return file;
-            }
-            yield break;
-        }
-
-        var stack = new Stack<string>();
         stack.Push(root);
+
         while (stack.Count > 0)
         {
-            string current = stack.Pop();
-            string[] files;
-            try { files = Directory.GetFiles(current); }
-            catch { files = Array.Empty<string>(); }
-            foreach (string file in files) yield return file;
+            string current =
+                stack.Pop();
 
-            string[] directories;
-            try { directories = Directory.GetDirectories(current); }
-            catch { directories = Array.Empty<string>(); }
-            foreach (string directory in directories)
+            IEnumerable<string> files;
+
+            try
             {
-                try
+                files =
+                    Directory.EnumerateFiles(
+                        current,
+                        "*",
+                        EnumerationSettings);
+            }
+            catch
+            {
+                files =
+                    Array.Empty<string>();
+            }
+
+            using (
+                IEnumerator<string> enumerator =
+                    files.GetEnumerator())
+            {
+                while (true)
                 {
-                    if ((new DirectoryInfo(directory).Attributes & FileAttributes.ReparsePoint) == 0)
-                        stack.Push(directory);
+                    string file;
+
+                    try
+                    {
+                        if (!enumerator.MoveNext())
+                            break;
+
+                        file =
+                            enumerator.Current;
+                    }
+                    catch
+                    {
+                        break;
+                    }
+
+                    yield return file;
                 }
-                catch { }
+            }
+
+            IEnumerable<string> directories;
+
+            try
+            {
+                directories =
+                    Directory.EnumerateDirectories(
+                        current,
+                        "*",
+                        EnumerationSettings);
+            }
+            catch
+            {
+                directories =
+                    Array.Empty<string>();
+            }
+
+            using (
+                IEnumerator<string> enumerator =
+                    directories.GetEnumerator())
+            {
+                while (true)
+                {
+                    string directory;
+
+                    try
+                    {
+                        if (!enumerator.MoveNext())
+                            break;
+
+                        directory =
+                            enumerator.Current;
+                    }
+                    catch
+                    {
+                        break;
+                    }
+
+                    if (ShouldSkipDirectory(
+                            directory,
+                            mode))
+                        continue;
+
+                    stack.Push(directory);
+                }
             }
         }
     }
 
-    private static async Task<ArchiveInspection> InspectZipAsync(string path, RuleSet rules, CancellationToken token)
+    private static bool ShouldSkipDirectory(
+        string path,
+        ScanMode mode)
     {
+        string name =
+            Path.GetFileName(
+                path.TrimEnd(
+                    Path.DirectorySeparatorChar,
+                    Path.AltDirectorySeparatorChar));
+
+        if (
+            name.Equals(
+                "System Volume Information",
+                StringComparison.OrdinalIgnoreCase) ||
+            name.Equals(
+                "$Recycle.Bin",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (mode == ScanMode.Forensic)
+            return false;
+
+        string normalized =
+            path.Replace(
+                Path.AltDirectorySeparatorChar,
+                Path.DirectorySeparatorChar);
+
+        string[] componentCaches =
+        {
+            $"{Path.DirectorySeparatorChar}Windows{Path.DirectorySeparatorChar}WinSxS",
+            $"{Path.DirectorySeparatorChar}Windows{Path.DirectorySeparatorChar}SoftwareDistribution",
+            $"{Path.DirectorySeparatorChar}Windows{Path.DirectorySeparatorChar}Installer",
+            $"{Path.DirectorySeparatorChar}Program Files{Path.DirectorySeparatorChar}WindowsApps",
+            $"{Path.DirectorySeparatorChar}ProgramData{Path.DirectorySeparatorChar}Package Cache"
+        };
+
+        return componentCaches.Any(cache =>
+            normalized.Contains(
+                cache,
+                StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static async Task<ArchiveInspection> InspectZipAsync(
+        string path,
+        RuleSet rules,
+        ScanMode mode,
+        CancellationToken token)
+    {
+        int maximumEntries = mode switch
+        {
+            ScanMode.Quick => 300,
+            ScanMode.Full => 1_000,
+            _ => 2_500
+        };
+
+        long maximumEmbeddedBytes = mode switch
+        {
+            ScanMode.Quick => 16L * 1024 * 1024,
+            ScanMode.Full => 64L * 1024 * 1024,
+            _ => 128L * 1024 * 1024
+        };
+
+        int maximumEntryBytes = mode switch
+        {
+            ScanMode.Quick => 1 * 1024 * 1024,
+            ScanMode.Full => 4 * 1024 * 1024,
+            _ => 8 * 1024 * 1024
+        };
+
+        TimeSpan archiveTimeLimit = mode switch
+        {
+            ScanMode.Quick => TimeSpan.FromSeconds(4),
+            ScanMode.Full => TimeSpan.FromSeconds(8),
+            _ => TimeSpan.FromSeconds(12)
+        };
+
+        DateTime started =
+            DateTime.UtcNow;
+
         int entries = 0;
         int executableEntries = 0;
         int staticScore = 0;
+        long embeddedBytesRead = 0;
         bool unreadable = false;
-        var indicators = new List<string>();
+        bool capped = false;
+
+        var indicators =
+            new List<string>();
 
         try
         {
-            using ZipArchive archive = ZipFile.OpenRead(path);
-            foreach (ZipArchiveEntry entry in archive.Entries.Take(5000))
+            using ZipArchive archive =
+                ZipFile.OpenRead(path);
+
+            foreach (ZipArchiveEntry entry in
+                     archive.Entries)
             {
                 token.ThrowIfCancellationRequested();
+
+                if (
+                    entries >= maximumEntries ||
+                    embeddedBytesRead >=
+                    maximumEmbeddedBytes ||
+                    DateTime.UtcNow - started >=
+                    archiveTimeLimit)
+                {
+                    capped = true;
+                    break;
+                }
+
                 entries++;
-                string extension = Path.GetExtension(entry.FullName);
-                string name = entry.FullName;
-                bool executablePayload = ArchivePayloadExtensions.Contains(extension);
-                if (executablePayload) executableEntries++;
 
-                if (RuleMatcher.ContainsHigh(name, rules) || RuleMatcher.ContainsMedium(name, rules))
-                    indicators.Add("Suspicious archive entry name: " + name);
+                string extension =
+                    Path.GetExtension(
+                        entry.FullName);
 
-                if (!executablePayload || entry.Length <= 0 || entry.Length > 24L * 1024 * 1024 || staticScore >= 90)
+                string name =
+                    entry.FullName;
+
+                bool executablePayload =
+                    ArchivePayloadExtensions.Contains(
+                        extension);
+
+                if (executablePayload)
+                    executableEntries++;
+
+                KnownCheatNameEntry? named =
+                    RuleMatcher.FindKnownCheatName(
+                        name,
+                        rules);
+
+                if (
+                    named is not null ||
+                    RuleMatcher.ContainsHigh(
+                        name,
+                        rules) ||
+                    RuleMatcher.ContainsMedium(
+                        name,
+                        rules))
+                {
+                    indicators.Add(
+                        named is not null
+                            ? $"Named archive entry: {named.Name} — {name}"
+                            : "Suspicious archive entry name: " + name);
+                }
+
+                if (
+                    !executablePayload ||
+                    entry.Length <= 0 ||
+                    entry.Length >
+                    maximumEntryBytes ||
+                    staticScore >= 90 ||
+                    embeddedBytesRead >=
+                    maximumEmbeddedBytes)
+                {
                     continue;
+                }
 
                 try
                 {
-                    await using Stream input = entry.Open();
-                    int limit = (int)Math.Min(entry.Length, 8L * 1024 * 1024);
-                    byte[] bytes = new byte[limit];
+                    await using Stream input =
+                        entry.Open();
+
+                    int remainingBudget =
+                        (int)Math.Min(
+                            maximumEntryBytes,
+                            maximumEmbeddedBytes -
+                            embeddedBytesRead);
+
+                    int limit =
+                        (int)Math.Min(
+                            entry.Length,
+                            remainingBudget);
+
+                    byte[] bytes =
+                        new byte[limit];
+
                     int offset = 0;
+
                     while (offset < bytes.Length)
                     {
-                        int read = await input.ReadAsync(bytes.AsMemory(offset, bytes.Length - offset), token);
-                        if (read == 0) break;
+                        int read =
+                            await input.ReadAsync(
+                                bytes.AsMemory(
+                                    offset,
+                                    bytes.Length -
+                                    offset),
+                                token);
+
+                        if (read == 0)
+                            break;
+
                         offset += read;
                     }
-                    if (offset != bytes.Length) Array.Resize(ref bytes, offset);
-                    StaticAnalysisResult result = StaticFileAnalyzer.AnalyzeBytes(bytes);
-                    staticScore = Math.Max(staticScore, result.Score);
-                    foreach (string indicator in result.Indicators.Take(10))
-                        indicators.Add($"{entry.FullName}: {indicator}");
+
+                    embeddedBytesRead += offset;
+
+                    if (offset != bytes.Length)
+                        Array.Resize(
+                            ref bytes,
+                            offset);
+
+                    StaticAnalysisResult result =
+                        StaticFileAnalyzer.AnalyzeBytes(
+                            bytes);
+
+                    staticScore =
+                        Math.Max(
+                            staticScore,
+                            result.Score);
+
+                    foreach (string indicator in
+                             result.Indicators.Take(8))
+                    {
+                        indicators.Add(
+                            $"{entry.FullName}: {indicator}");
+                    }
                 }
                 catch
                 {
@@ -1092,11 +1923,48 @@ public sealed class FileArtifactCollector : IScanCollector
             unreadable = true;
         }
 
-        string note = unreadable
-            ? "Some archive content was encrypted, damaged, unsupported, or unavailable for read-only inspection."
-            : "ZIP/JAR archive inspected without extracting files.";
-        return new ArchiveInspection(entries, executableEntries, staticScore,
-            indicators.Distinct(StringComparer.OrdinalIgnoreCase).Take(24).ToArray(), unreadable, note);
+        string note = capped
+            ? "Archive inspection stopped at the per-file entry, byte, or time limit."
+            : unreadable
+                ? "Some archive content was encrypted, damaged, unsupported, or unavailable for read-only inspection."
+                : "ZIP/JAR archive inspected without extracting files.";
+
+        return new ArchiveInspection(
+            entries,
+            executableEntries,
+            staticScore,
+            indicators
+                .Distinct(
+                    StringComparer.OrdinalIgnoreCase)
+                .Take(24)
+                .ToArray(),
+            unreadable,
+            capped,
+            note);
+    }
+
+    private sealed record ScanRoot(
+        string Path,
+        string Location,
+        bool IsVolumeRoot);
+
+    private sealed record InspectionResult(
+        SignatureResult? Signature,
+        string? Hash,
+        StaticAnalysisResult StaticResult,
+        ArchiveInspection Archive,
+        bool TimedOut,
+        string Note)
+    {
+        public static InspectionResult Skipped(
+            string note) =>
+            new(
+                null,
+                null,
+                StaticAnalysisResult.Empty,
+                ArchiveInspection.Empty,
+                false,
+                note);
     }
 
     private sealed record ArchiveInspection(
@@ -1105,8 +1973,17 @@ public sealed class FileArtifactCollector : IScanCollector
         int StaticScore,
         IReadOnlyList<string> Indicators,
         bool Unreadable,
+        bool Capped,
         string Note)
     {
-        public static ArchiveInspection Empty { get; } = new(0, 0, 0, Array.Empty<string>(), false, "");
+        public static ArchiveInspection Empty { get; } =
+            new(
+                0,
+                0,
+                0,
+                Array.Empty<string>(),
+                false,
+                false,
+                "");
     }
 }

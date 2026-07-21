@@ -1,6 +1,6 @@
 {
   "product": "DoubleG Scanner",
-  "version": "2.1.6",
+  "version": "2.1.7",
   "network_upload": false,
   "telemetry": false,
   "background_service": false,
@@ -149,5 +149,22 @@
     "read_only": true,
     "mode_specific_caps_and_timeouts": true,
     "reparse_points_followed": false
+  },
+  "all_disk_performance_policy": {
+    "two_stage_scan": true,
+    "stage_1": "Fast filename/path metadata sweep",
+    "stage_2": "Deep analysis only for named, suspicious, downloaded, recent, or user-writable candidates",
+    "quick_disk_stage_limit_seconds": 75,
+    "full_disk_stage_limit_seconds": 180,
+    "forensic_disk_stage_limit_seconds": 300,
+    "per_file_timeout_seconds": {
+      "quick": 4,
+      "full": 8,
+      "forensic": 12
+    },
+    "archive_entry_byte_time_caps": true,
+    "all_ready_fixed_and_removable_volumes_attempted": true,
+    "component_cache_exclusions_quick_full": true,
+    "read_only": true
   }
 }

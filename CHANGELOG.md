@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.1.7
+- Reworked the all-disk collector into a two-stage fast metadata sweep plus selective deep inspection.
+- Stopped hashing, signature-checking, and static-analyzing every ordinary Windows and Program Files binary.
+- Preserved path/name scanning across all ready fixed and removable volumes.
+- Deep analysis now targets named-family, keyword, Downloads, user-writable, recent, or other relevant candidates.
+- Added disk-stage limits: approximately 75 seconds Quick, 3 minutes Full, and 5 minutes Forensic.
+- Added separate per-volume time slices so C: cannot consume the entire scan before D:/USB disks are attempted.
+- Added per-file deep-inspection timeouts.
+- Added ZIP/JAR entry, byte, and time limits so one large archive cannot stall the scan.
+- Replaced large `Directory.GetFiles` allocations with lazy inaccessible-safe enumeration.
+- Added continuous progress text showing metadata candidates and deep checks.
+- Quick and Full skip low-value operating-system component caches; Forensic retains broader coverage.
+- Preserved browser recovery, expanded cheat-family aliases, duplicate consolidation, PDF styling, and kernel integration.
+
 ## 2.1.6
 - Fixed GitHub Actions C# syntax errors in `ForensicCollectors.cs`.
 - Corrected two Windows path trimming character literals from invalid `TrimEnd('\')` source syntax to valid escaped backslash literals.

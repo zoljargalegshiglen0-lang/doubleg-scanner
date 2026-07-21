@@ -1,4 +1,4 @@
-# DoubleG Scanner v2.1.6
+# DoubleG Scanner v2.1.7
 
 ## New Forensic Scan
 
@@ -136,3 +136,11 @@ user, DoubleG Scanner offers to restart through Windows UAC.
 
 - Fixed invalid escaped backslash character literals in the all-disk root-path check.
 - No scan behavior was removed.
+
+
+## v2.1.7 faster all-disk scan
+
+- Fast filename/path sweep on every ready fixed/removable disk.
+- Deep hash/signature/static/archive inspection only for relevant candidates.
+- Approximate disk-stage limits: Quick 75 seconds, Full 3 minutes, Forensic 5 minutes.
+- Per-drive and per-file limits prevent one disk or one large archive from freezing progress.
