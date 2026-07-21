@@ -15,6 +15,12 @@ public static class DetectionEngine
             if (TryAddExactHashFinding(item, rules, findings)) continue;
 
             string combined = string.Join(" ", item.Name, item.Path, item.Url, item.Detail,
+                item.Metadata.GetValueOrDefault("ShortcutFileName"),
+                item.Metadata.GetValueOrDefault("ShortcutPath"),
+                item.Metadata.GetValueOrDefault("TargetPath"),
+                item.Metadata.GetValueOrDefault("Arguments"),
+                item.Metadata.GetValueOrDefault("WorkingDirectory"),
+                item.Metadata.GetValueOrDefault("InternetUrl"),
                 item.Metadata.GetValueOrDefault("ArchiveIndicators"),
                 item.Metadata.GetValueOrDefault("StaticIndicators"));
 
@@ -231,7 +237,33 @@ public static class DetectionEngine
         int archiveStatic = MetaInt(item, "ArchiveStaticScore");
         int archiveExecutables = MetaInt(item, "ArchiveExecutableCount");
         bool recentDownload = item.Metadata.GetValueOrDefault("RecordType") == "RecentDownloadArtifact";
-        bool browserDownload = item.Kind == EvidenceKind.Browser && item.Metadata.GetValueOrDefault("RecordType") == "Download";
+        string browserRecordType =
+            item.Metadata.GetValueOrDefault(
+                "RecordType") ?? "";
+
+        bool browserDownload =
+            item.Kind == EvidenceKind.Browser &&
+            browserRecordType.Equals(
+                "Download",
+                StringComparison.OrdinalIgnoreCase);
+
+        bool browserVisit =
+            item.Kind == EvidenceKind.Browser &&
+            browserRecordType.Equals(
+                "Visit",
+                StringComparison.OrdinalIgnoreCase);
+
+        bool recoveredBrowser =
+            item.Kind == EvidenceKind.Browser &&
+            browserRecordType.Equals(
+                "RecoveredBrowserFragment",
+                StringComparison.OrdinalIgnoreCase);
+
+        bool communitySource =
+            named.Family.Contains(
+                "Community",
+                StringComparison.OrdinalIgnoreCase);
+
         bool cs2Module = item.Kind == EvidenceKind.Module &&
                          string.Equals(item.Metadata.GetValueOrDefault("ProcessName"), "cs2.exe", StringComparison.OrdinalIgnoreCase);
         bool technicalSupport = staticScore >= 30 || archiveStatic >= 25 || archiveExecutables > 0 || unsigned;
@@ -353,12 +385,67 @@ public static class DetectionEngine
             return;
         }
 
+        if (item.Kind == EvidenceKind.Browser &&
+            communitySource)
+        {
+            findings.Add(Named(
+                "DGS-NAMED-COMMUNITY-BROWSER",
+                FindingSeverity.Warning,
+                34,
+                $"Community release source trace: {named.Name}",
+                "A browser record matched a community cheat-release source. This is review evidence and is not a confirmed single cheat detection.",
+                item,
+                named,
+                "Community release source in browser data",
+                "Manual verification required"));
+            return;
+        }
+
         if (browserDownload)
         {
-            findings.Add(Named("DGS-NAMED-WEB", FindingSeverity.High, 56,
-                $"Named cheat download record: {named.Name}",
-                "A browser download record matched a known cheat-family name. Browser history alone is not proof.",
-                item, named, "Known cheat name in browser download", "Manual verification required"));
+            findings.Add(Named(
+                "DGS-NAMED-BROWSER-DOWNLOAD",
+                FindingSeverity.High,
+                86,
+                $"Named cheat browser download: {named.Name}",
+                "A browser download record matched a known cheat-family name. It is highlighted for review, but browser data alone does not prove execution.",
+                item,
+                named,
+                "Known cheat family in browser download",
+                "Highlighted browser evidence",
+                "Manual verification required"));
+            return;
+        }
+
+        if (browserVisit)
+        {
+            findings.Add(Named(
+                "DGS-NAMED-BROWSER-VISIT",
+                FindingSeverity.High,
+                82,
+                $"Named cheat browser history: {named.Name}",
+                "A browser visit or page title matched a known cheat-family name. It is highlighted in red for fast review, but history alone does not prove use.",
+                item,
+                named,
+                "Known cheat family in browser history",
+                "Highlighted browser evidence",
+                "Manual verification required"));
+            return;
+        }
+
+        if (recoveredBrowser)
+        {
+            findings.Add(Named(
+                "DGS-NAMED-BROWSER-RECOVERED",
+                FindingSeverity.High,
+                80,
+                $"Recovered browser trace: {named.Name}",
+                "A named cheat-family fragment was recovered from SQLite WAL, freelist, or rollback-journal storage. The fragment may be deleted or stale and has no reliable timestamp.",
+                item,
+                named,
+                "Named cheat family in residual browser storage",
+                "Possible deleted-history fragment",
+                "Manual verification required"));
             return;
         }
 

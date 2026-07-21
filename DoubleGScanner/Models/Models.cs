@@ -18,7 +18,13 @@ public sealed class KnownCheatNameEntry
 {
     public string Name { get; set; } = "";
     public string Family { get; set; } = "CS2 cheat";
+    // Distinctive aliases that may safely match inside a larger path/URL.
     public List<string> Aliases { get; set; } = new();
+    // Ambiguous names that match only an exact normalized filename/value.
+    public List<string> ExactAliases { get; set; } = new();
+    // Ambiguous names that match a filename prefix only when followed by
+    // a version/build/loader-style suffix, e.g. midnight-v4.2 or vanity_setup.
+    public List<string> PrefixAliases { get; set; } = new();
 }
 
 public sealed class KnownVulnerableDriverEntry
@@ -32,7 +38,7 @@ public sealed class KnownVulnerableDriverEntry
 
 public sealed class RuleSet
 {
-    public string Version { get; set; } = "2.1.2";
+    public string Version { get; set; } = "2.1.5";
     public List<KnownCheatEntry> KnownCheats { get; set; } = new();
     public List<KnownCheatNameEntry> KnownCheatNames { get; set; } = new();
     public List<KnownVulnerableDriverEntry> KnownVulnerableDrivers { get; set; } = new();

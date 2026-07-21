@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using System.Runtime.InteropServices;
 using System.Text;
 using DoubleGScanner.Models;
 using DoubleGScanner.Services;
@@ -78,11 +79,219 @@ public sealed class ExecutionHistoryCollector : IScanCollector
     }
     private static int Recent(List<EvidenceRecord> list)
     {
-        string folder=Environment.GetFolderPath(Environment.SpecialFolder.Recent);if(!Directory.Exists(folder))return 0;
-        FileInfo[] files=new DirectoryInfo(folder).EnumerateFiles("*").OrderByDescending(x=>x.LastWriteTimeUtc).Take(500).ToArray();
-        foreach(FileInfo f in files)list.Add(new(){Kind=EvidenceKind.Execution,Source="Recent Items",Name=f.Name,Path=f.FullName,Timestamp=f.LastWriteTime,
-            Detail="Recent Items shell artifact; shortcut target was not opened."});
+        string folder =
+            Environment.GetFolderPath(
+                Environment.SpecialFolder.Recent);
+
+        if (!Directory.Exists(folder))
+            return 0;
+
+        FileInfo[] files =
+            new DirectoryInfo(folder)
+                .EnumerateFiles("*")
+                .OrderByDescending(item =>
+                    item.LastWriteTimeUtc)
+                .Take(1_500)
+                .ToArray();
+
+        foreach (FileInfo file in files)
+        {
+            string extension =
+                file.Extension.ToLowerInvariant();
+
+            string displayName =
+                Path.GetFileNameWithoutExtension(
+                    file.Name);
+
+            string? targetPath = null;
+            string? arguments = null;
+            string? workingDirectory = null;
+            string? internetUrl = null;
+
+            if (extension == ".lnk")
+            {
+                TryReadShellShortcut(
+                    file.FullName,
+                    out targetPath,
+                    out arguments,
+                    out workingDirectory);
+            }
+            else if (extension == ".url")
+            {
+                internetUrl =
+                    TryReadInternetShortcut(
+                        file.FullName);
+            }
+
+            string detail = extension switch
+            {
+                ".lnk" when
+                    !string.IsNullOrWhiteSpace(targetPath) =>
+                    "Recent Items shortcut metadata was read without opening the target.",
+                ".url" when
+                    !string.IsNullOrWhiteSpace(internetUrl) =>
+                    "Recent Internet Shortcut URL was read without opening it.",
+                _ =>
+                    "Recent Items shell artifact; the referenced item was not opened."
+            };
+
+            list.Add(new EvidenceRecord
+            {
+                Kind = EvidenceKind.Execution,
+                Source = "Recent Items",
+                Name = string.IsNullOrWhiteSpace(displayName)
+                    ? file.Name
+                    : displayName,
+                Path = !string.IsNullOrWhiteSpace(targetPath)
+                    ? targetPath
+                    : file.FullName,
+                Url = internetUrl,
+                Timestamp = file.LastWriteTime,
+                Detail = detail,
+                Metadata =
+                    new Dictionary<string, string>(
+                        StringComparer.OrdinalIgnoreCase)
+                    {
+                        ["RecordType"] =
+                            extension == ".lnk"
+                                ? "ShellShortcut"
+                                : extension == ".url"
+                                    ? "InternetShortcut"
+                                    : "RecentItem",
+                        ["ShortcutPath"] =
+                            file.FullName,
+                        ["ShortcutFileName"] =
+                            file.Name,
+                        ["TargetPath"] =
+                            targetPath ?? "",
+                        ["Arguments"] =
+                            arguments ?? "",
+                        ["WorkingDirectory"] =
+                            workingDirectory ?? "",
+                        ["InternetUrl"] =
+                            internetUrl ?? "",
+                        ["TargetExists"] =
+                            (!string.IsNullOrWhiteSpace(targetPath) &&
+                             File.Exists(targetPath))
+                                .ToString()
+                    }
+            });
+        }
+
         return files.Length;
+    }
+
+    private static void TryReadShellShortcut(
+        string shortcutPath,
+        out string? targetPath,
+        out string? arguments,
+        out string? workingDirectory)
+    {
+        targetPath = null;
+        arguments = null;
+        workingDirectory = null;
+
+        object? shell = null;
+        object? shortcut = null;
+
+        try
+        {
+            Type? shellType =
+                Type.GetTypeFromProgID(
+                    "WScript.Shell");
+
+            if (shellType is null)
+                return;
+
+            shell =
+                Activator.CreateInstance(
+                    shellType);
+
+            if (shell is null)
+                return;
+
+            dynamic dynamicShell = shell;
+            shortcut =
+                dynamicShell.CreateShortcut(
+                    shortcutPath);
+
+            dynamic dynamicShortcut =
+                shortcut;
+
+            targetPath =
+                Convert.ToString(
+                    dynamicShortcut.TargetPath);
+
+            arguments =
+                Convert.ToString(
+                    dynamicShortcut.Arguments);
+
+            workingDirectory =
+                Convert.ToString(
+                    dynamicShortcut.WorkingDirectory);
+        }
+        catch
+        {
+            // The shortcut filename remains useful even when COM metadata
+            // cannot be resolved.
+        }
+        finally
+        {
+            if (shortcut is not null &&
+                Marshal.IsComObject(shortcut))
+            {
+                try
+                {
+                    Marshal.FinalReleaseComObject(
+                        shortcut);
+                }
+                catch
+                {
+                }
+            }
+
+            if (shell is not null &&
+                Marshal.IsComObject(shell))
+            {
+                try
+                {
+                    Marshal.FinalReleaseComObject(
+                        shell);
+                }
+                catch
+                {
+                }
+            }
+        }
+    }
+
+    private static string? TryReadInternetShortcut(
+        string shortcutPath)
+    {
+        try
+        {
+            foreach (string line in
+                     File.ReadLines(shortcutPath)
+                         .Take(80))
+            {
+                if (!line.StartsWith(
+                        "URL=",
+                        StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                string value =
+                    line[4..].Trim();
+
+                return string.IsNullOrWhiteSpace(value)
+                    ? null
+                    : value;
+            }
+        }
+        catch
+        {
+        }
+
+        return null;
     }
     private static string Rot13(string s)
     {
@@ -389,7 +598,7 @@ public sealed class FileArtifactCollector : IScanCollector
     private static readonly HashSet<string> Extensions = new(StringComparer.OrdinalIgnoreCase)
     {
         ".exe", ".dll", ".sys", ".com", ".scr", ".msi", ".bat", ".cmd", ".ps1", ".vbs", ".js",
-        ".zip", ".rar", ".7z", ".jar", ".iso", ".img", ".lnk"
+        ".zip", ".rar", ".7z", ".jar", ".iso", ".img", ".lnk", ".url"
     };
 
     private static readonly HashSet<string> BinaryExtensions = new(StringComparer.OrdinalIgnoreCase)
@@ -415,16 +624,38 @@ public sealed class FileArtifactCollector : IScanCollector
         int checkedCount = 0;
         bool partial = false;
 
-        int max = context.Mode == ScanMode.Quick
-            ? 7000
-            : 18000;
+        int max = context.Mode switch
+        {
+            ScanMode.Quick => 40_000,
+            ScanMode.Full => 150_000,
+            _ => 300_000
+        };
 
-        int days = context.Mode == ScanMode.Quick
-            ? 120
-            : 365;
+        int days = context.Mode switch
+        {
+            ScanMode.Quick => 180,
+            ScanMode.Full => 1_095,
+            _ => int.MaxValue
+        };
+
+        TimeSpan totalTimeLimit = context.Mode switch
+        {
+            ScanMode.Quick => TimeSpan.FromMinutes(3),
+            ScanMode.Full => TimeSpan.FromMinutes(12),
+            _ => TimeSpan.FromMinutes(25)
+        };
+
+        int perRootCandidateLimit = context.Mode switch
+        {
+            ScanMode.Quick => 30_000,
+            ScanMode.Full => 120_000,
+            _ => 250_000
+        };
 
         bool recursive = true;
-        DateTime cutoff = DateTime.UtcNow.AddDays(-days);
+        DateTime cutoff = context.Mode == ScanMode.Forensic
+            ? DateTime.MinValue
+            : DateTime.UtcNow.AddDays(-days);
 
         string user = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         string downloads = Path.Combine(user, "Downloads");
@@ -435,35 +666,167 @@ public sealed class FileArtifactCollector : IScanCollector
         var roots = new List<(string Path, string Location)>
         {
             (downloads, "Downloads"),
-            (desktop, "Desktop")
+            (desktop, "Desktop"),
+            (temp, "Temporary files"),
+            (localTemp, "Local temporary files")
         };
-        roots.Add((temp, "Temporary files"));
-        roots.Add((localTemp, "Local temporary files"));
+
+        foreach (DriveInfo drive in
+                 DriveInfo.GetDrives()
+                     .Where(item =>
+                         item.IsReady &&
+                         item.DriveType is
+                             DriveType.Fixed or
+                             DriveType.Removable))
+        {
+            roots.Add((
+                drive.RootDirectory.FullName,
+                $"{drive.DriveType} disk {drive.Name}"));
+        }
+
+        var seenFiles =
+            new HashSet<string>(
+                StringComparer.OrdinalIgnoreCase);
+
+        bool stopAll = false;
+        int volumeRootsVisited = 0;
 
         foreach ((string root, string location) in roots
-                     .Where(x => !string.IsNullOrWhiteSpace(x.Path))
-                     .DistinctBy(x => Path.GetFullPath(x.Path), StringComparer.OrdinalIgnoreCase))
+                     .Where(item =>
+                         !string.IsNullOrWhiteSpace(
+                             item.Path))
+                     .DistinctBy(
+                         item =>
+                             Path.GetFullPath(
+                                 item.Path),
+                         StringComparer.OrdinalIgnoreCase))
         {
-            if (!Directory.Exists(root)) continue;
+            if (!Directory.Exists(root))
+                continue;
+
+            bool volumeRoot =
+                Path.GetPathRoot(root)
+                    ?.TrimEnd('\')
+                    .Equals(
+                        root.TrimEnd('\'),
+                        StringComparison.OrdinalIgnoreCase) ==
+                true;
+
+            if (volumeRoot)
+                volumeRootsVisited++;
+
+            int rootCandidates = 0;
+
+            progress?.Report(new ScanProgressUpdate
+            {
+                Percent =
+                    context.Mode == ScanMode.Quick
+                        ? 72
+                        : 81,
+                Module = Name,
+                Message =
+                    $"Searching executable, archive, shortcut, and named-family artifacts in {location}",
+                ItemsChecked =
+                    checkedCount
+            });
+
             try
             {
-                foreach (string file in EnumerateFiles(root, recursive))
+                foreach (string file in
+                         EnumerateFiles(
+                             root,
+                             recursive))
                 {
                     token.ThrowIfCancellationRequested();
-                    if (checkedCount >= max) break;
-                    string extension = Path.GetExtension(file);
-                    if (!Extensions.Contains(extension)) continue;
+
+                    if (
+                        checkedCount >= max ||
+                        rootCandidates >=
+                        perRootCandidateLimit ||
+                        DateTime.UtcNow - started >=
+                        totalTimeLimit)
+                    {
+                        partial = true;
+                        stopAll =
+                            checkedCount >= max ||
+                            DateTime.UtcNow - started >=
+                            totalTimeLimit;
+                        break;
+                    }
+
+                    string extension =
+                        Path.GetExtension(file);
+
+                    if (!Extensions.Contains(
+                            extension))
+                        continue;
+
+                    rootCandidates++;
+
+                    string fullPath;
+
+                    try
+                    {
+                        fullPath =
+                            Path.GetFullPath(file);
+                    }
+                    catch
+                    {
+                        fullPath = file;
+                    }
+
+                    if (!seenFiles.Add(fullPath))
+                        continue;
 
                     FileInfo info;
-                    try { info = new FileInfo(file); }
-                    catch { continue; }
-                    if (!info.Exists || info.LastWriteTimeUtc < cutoff) continue;
+
+                    try
+                    {
+                        info =
+                            new FileInfo(file);
+                    }
+                    catch
+                    {
+                        continue;
+                    }
+
+                    if (!info.Exists)
+                        continue;
+
+                    KnownCheatNameEntry? namedPath =
+                        RuleMatcher.FindKnownCheatName(
+                            fullPath,
+                            context.Rules);
+
+                    if (
+                        namedPath is null &&
+                        info.LastWriteTimeUtc <
+                        cutoff)
+                        continue;
 
                     checkedCount++;
-                    bool isBinary = BinaryExtensions.Contains(extension);
-                    bool isArchive = ArchiveExtensions.Contains(extension);
-                    bool isRecent = info.LastWriteTimeUtc >= DateTime.UtcNow.AddDays(-30);
-                    bool isDownload = location.Equals("Downloads", StringComparison.OrdinalIgnoreCase);
+
+                    bool isBinary =
+                        BinaryExtensions.Contains(
+                            extension);
+
+                    bool isArchive =
+                        ArchiveExtensions.Contains(
+                            extension);
+
+                    bool isRecent =
+                        info.LastWriteTimeUtc >=
+                        DateTime.UtcNow.AddDays(-30);
+
+                    bool isDownload =
+                        IsUnderPath(
+                            fullPath,
+                            downloads);
+
+                    string effectiveLocation =
+                        isDownload
+                            ? "Downloads"
+                            : location;
 
                     string? hash = null;
                     SignatureResult? signature = null;
@@ -491,7 +854,11 @@ public sealed class FileArtifactCollector : IScanCollector
 
                     string combined = string.Join(" ", new[] { file }.Concat(archive.Indicators).Concat(staticResult.Indicators));
                     bool known = RuleMatcher.IsKnownHash(hash, context.Rules);
-                    bool namedCheat = RuleMatcher.FindKnownCheatName(combined, context.Rules) is not null;
+                    bool namedCheat =
+                        namedPath is not null ||
+                        RuleMatcher.FindKnownCheatName(
+                            combined,
+                            context.Rules) is not null;
                     bool highKeyword = RuleMatcher.ContainsHigh(combined, context.Rules);
                     bool mediumKeyword = RuleMatcher.ContainsMedium(combined, context.Rules);
                     bool unsignedUserBinary = isBinary && signature?.IsValid != true && RuleMatcher.IsUserWritable(file);
@@ -514,7 +881,10 @@ public sealed class FileArtifactCollector : IScanCollector
                     var metadata = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
                     {
                         ["RecordType"] = isDownload ? "RecentDownloadArtifact" : "LocalFileArtifact",
-                        ["Location"] = location,
+                        ["Location"] = effectiveLocation,
+                        ["VolumeRoot"] =
+                            Path.GetPathRoot(fullPath) ?? "",
+                        ["AllDiskSweep"] = "True",
                         ["FileSize"] = info.Length.ToString(),
                         ["Extension"] = extension,
                         ["Created"] = info.CreationTime.ToString("O"),
@@ -549,26 +919,60 @@ public sealed class FileArtifactCollector : IScanCollector
                         {
                             Percent = context.Mode == ScanMode.Quick ? 76 : 82,
                             Module = Name,
-                            Message = $"Inspecting recent executable and archive files in {location}",
+                            Message = $"Inspecting disk artifact {checkedCount:N0} in {location}",
                             ItemsChecked = checkedCount
                         });
                     }
                 }
             }
-            catch { partial = true; }
+            catch
+            {
+                partial = true;
+            }
 
-            if (checkedCount >= max) break;
+            if (stopAll)
+                break;
         }
 
         return new CollectorOutput
         {
             Module = Name,
             Status = checkedCount >= max || partial ? CoverageStatus.Partial : CoverageStatus.Completed,
-            Summary = $"Checked {checkedCount:N0} recent executable/archive files and retained {evidence.Count:N0} items requiring detection review.",
+            Summary = $"Checked {checkedCount:N0} executable/archive/shortcut candidates across {volumeRootsVisited:N0} ready fixed or removable volume root(s) and retained {evidence.Count:N0} relevant items. Named-family paths are checked regardless of age; mode-specific caps and time limits prevent an endless scan.",
             Evidence = evidence,
             ItemsChecked = checkedCount,
             Duration = DateTime.UtcNow - started
         };
+    }
+
+    private static bool IsUnderPath(
+        string candidate,
+        string root)
+    {
+        if (string.IsNullOrWhiteSpace(candidate) ||
+            string.IsNullOrWhiteSpace(root))
+            return false;
+
+        try
+        {
+            string fullCandidate =
+                Path.GetFullPath(candidate);
+
+            string fullRoot =
+                Path.GetFullPath(root)
+                    .TrimEnd(
+                        Path.DirectorySeparatorChar,
+                        Path.AltDirectorySeparatorChar) +
+                Path.DirectorySeparatorChar;
+
+            return fullCandidate.StartsWith(
+                fullRoot,
+                StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static string BuildDetail(SignatureResult? signature, StaticAnalysisResult staticResult, ArchiveInspection archive, bool isArchive)

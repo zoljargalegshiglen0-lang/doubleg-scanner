@@ -1,4 +1,4 @@
-# DoubleG Scanner v2.1.2
+# DoubleG Scanner v2.1.5
 
 ## New Forensic Scan
 
@@ -106,3 +106,27 @@ user, DoubleG Scanner offers to restart through Windows UAC.
 - Standard scanner installer no longer tries to package a missing unsigned kernel driver.
 - Kernel driver remains a separate workflow/artifact.
 - Report nullable and certificate API warnings were cleaned up.
+
+
+## v2.1.3 shortcut and alias detection
+
+- Detects named cheat-family traces from Recent Items `.lnk` and `.url` shortcuts.
+- Reads shortcut target/arguments without executing the referenced file.
+- Adds Undetek and a broader curated CS2 family/alias database.
+- Ambiguous names use exact or controlled version-prefix matching to reduce false positives.
+
+
+## v2.1.4 expanded cheat-family database
+
+- Added every name in the supplied CS2 cheat/family/source list.
+- Uses longest/best alias resolution for similarly named products.
+- Community release forums are classified as review sources, not automatically as a confirmed cheat.
+- The list remains updateable through `Data/rules.json`; private/rebranded names can still require future updates.
+
+
+## v2.1.5 browser recovery and all-disk search
+
+- Added the latest supplied cheat-family names, including separate Neverloose, Predator, and Phantom entries.
+- Named browser history/download matches are highlighted red in the PDF.
+- Samples SQLite WAL, rollback-journal, and freelist pages for possible deleted named browser traces.
+- Quick, Full, and Forensic scan all ready fixed/removable volumes with bounded read-only sweeps.

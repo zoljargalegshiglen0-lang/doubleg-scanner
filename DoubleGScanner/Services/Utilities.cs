@@ -165,27 +165,264 @@ public static class RuleMatcher
                 candidate.Equals(fileName, StringComparison.OrdinalIgnoreCase)));
     }
 
-    public static KnownCheatNameEntry? FindKnownCheatName(string? value, RuleSet r)
+    public static KnownCheatNameEntry? FindKnownCheatName(
+        string? value,
+        RuleSet rules)
     {
-        if (string.IsNullOrWhiteSpace(value)) return null;
-        string normalizedValue = NormalizeName(value);
-        string fileStem = NormalizeName(Path.GetFileNameWithoutExtension(value));
+        if (string.IsNullOrWhiteSpace(value))
+            return null;
 
-        foreach (KnownCheatNameEntry entry in r.KnownCheatNames)
+        string normalizedValue =
+            NormalizeName(value);
+
+        IReadOnlyList<string> artifactStems =
+            ExtractArtifactStems(value);
+
+        KnownCheatNameEntry? bestEntry = null;
+        int bestScore = -1;
+
+        foreach (KnownCheatNameEntry entry in
+                 rules.KnownCheatNames)
         {
-            IEnumerable<string> candidates = entry.Aliases.Prepend(entry.Name);
-            foreach (string candidate in candidates)
+            // Canonical names are exact matches by default. They are not
+            // automatically treated as broad substring aliases.
+            foreach (string candidate in
+                     entry.ExactAliases.Prepend(entry.Name))
             {
-                if (string.IsNullOrWhiteSpace(candidate)) continue;
-                string normalizedCandidate = NormalizeName(candidate);
-                if (normalizedCandidate.Length < 4) continue;
+                string normalizedCandidate =
+                    NormalizeName(candidate);
 
-                if (normalizedValue.Contains(normalizedCandidate, StringComparison.OrdinalIgnoreCase) ||
-                    fileStem.Equals(normalizedCandidate, StringComparison.OrdinalIgnoreCase))
-                    return entry;
+                if (normalizedCandidate.Length < 4)
+                    continue;
+
+                bool exact =
+                    artifactStems.Any(stem =>
+                        stem.Equals(
+                            normalizedCandidate,
+                            StringComparison.OrdinalIgnoreCase)) ||
+                    normalizedValue.Equals(
+                        normalizedCandidate,
+                        StringComparison.OrdinalIgnoreCase);
+
+                if (!exact)
+                    continue;
+
+                int score =
+                    3_000 +
+                    normalizedCandidate.Length;
+
+                if (score > bestScore)
+                {
+                    bestScore = score;
+                    bestEntry = entry;
+                }
+            }
+
+            foreach (string candidate in
+                     entry.PrefixAliases)
+            {
+                string normalizedCandidate =
+                    NormalizeName(candidate);
+
+                if (normalizedCandidate.Length < 4)
+                    continue;
+
+                foreach (string stem in
+                         artifactStems)
+                {
+                    if (!stem.StartsWith(
+                            normalizedCandidate,
+                            StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    string suffix =
+                        stem[normalizedCandidate.Length..];
+
+                    if (!IsArtifactVersionSuffix(
+                            suffix))
+                        continue;
+
+                    int score =
+                        2_000 +
+                        normalizedCandidate.Length;
+
+                    if (score > bestScore)
+                    {
+                        bestScore = score;
+                        bestEntry = entry;
+                    }
+                }
+            }
+
+            // Only deliberately distinctive aliases use substring matching.
+            foreach (string candidate in
+                     entry.Aliases)
+            {
+                string normalizedCandidate =
+                    NormalizeName(candidate);
+
+                if (normalizedCandidate.Length < 4 ||
+                    !normalizedValue.Contains(
+                        normalizedCandidate,
+                        StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                int score =
+                    1_000 +
+                    normalizedCandidate.Length;
+
+                if (score > bestScore)
+                {
+                    bestScore = score;
+                    bestEntry = entry;
+                }
             }
         }
-        return null;
+
+        return bestEntry;
+    }
+
+    private static IReadOnlyList<string> ExtractArtifactStems(
+        string value)
+    {
+        var output =
+            new HashSet<string>(
+                StringComparer.OrdinalIgnoreCase);
+
+        char[] separators =
+        {
+            ' ',
+            '\t',
+            '\r',
+            '\n',
+            '|',
+            ';',
+            ',',
+            '"',
+            '\'',
+            '<',
+            '>',
+            '(',
+            ')',
+            '[',
+            ']',
+            '{',
+            '}',
+            '='
+        };
+
+        foreach (string token in
+                 value.Split(
+                     separators,
+                     StringSplitOptions.RemoveEmptyEntries |
+                     StringSplitOptions.TrimEntries))
+        {
+            AddArtifactToken(
+                output,
+                token);
+
+            foreach (string part in
+                     token.Split(
+                         new[] { '\\', '/' },
+                         StringSplitOptions.RemoveEmptyEntries |
+                         StringSplitOptions.TrimEntries))
+            {
+                AddArtifactToken(
+                    output,
+                    part);
+            }
+        }
+
+        string full =
+            NormalizeName(value);
+
+        if (!string.IsNullOrWhiteSpace(full))
+            output.Add(full);
+
+        return output.ToArray();
+    }
+
+    private static void AddArtifactToken(
+        HashSet<string> output,
+        string token)
+    {
+        string cleaned =
+            token
+                .Trim()
+                .TrimEnd(
+                    '.',
+                    ':',
+                    '?',
+                    '&',
+                    '#');
+
+        if (string.IsNullOrWhiteSpace(cleaned))
+            return;
+
+        string normalizedToken =
+            NormalizeName(cleaned);
+
+        if (!string.IsNullOrWhiteSpace(
+                normalizedToken))
+            output.Add(normalizedToken);
+
+        string stem;
+
+        try
+        {
+            stem =
+                Path.GetFileNameWithoutExtension(
+                    cleaned);
+        }
+        catch
+        {
+            stem = cleaned;
+        }
+
+        string normalizedStem =
+            NormalizeName(stem);
+
+        if (!string.IsNullOrWhiteSpace(
+                normalizedStem))
+            output.Add(normalizedStem);
+    }
+
+    private static bool IsArtifactVersionSuffix(
+        string suffix)
+    {
+        if (string.IsNullOrWhiteSpace(suffix))
+            return false;
+
+        if (suffix.All(char.IsDigit))
+            return true;
+
+        string[] acceptedPrefixes =
+        {
+            "v",
+            "ver",
+            "version",
+            "build",
+            "client",
+            "loader",
+            "setup",
+            "installer",
+            "launcher",
+            "internal",
+            "external",
+            "cs2",
+            "cheat",
+            "lite",
+            "reloaded",
+            "dma",
+            "release",
+            "beta",
+            "alpha"
+        };
+
+        return acceptedPrefixes.Any(prefix =>
+            suffix.StartsWith(
+                prefix,
+                StringComparison.OrdinalIgnoreCase));
     }
 
     public static bool IsBinary(string? path) =>

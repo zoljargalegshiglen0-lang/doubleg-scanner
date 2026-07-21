@@ -1,6 +1,6 @@
 {
   "product": "DoubleG Scanner",
-  "version": "2.0.0",
+  "version": "2.1.5",
   "network_upload": false,
   "telemetry": false,
   "background_service": false,
@@ -119,5 +119,35 @@
     "ioctl_access": "FILE_READ_DATA",
     "device_acl": "SYSTEM full; built-in Administrators read",
     "unsigned_ci_artifact_in_public_installer": false
+  },
+  "browser_residual_recovery": {
+    "enabled_in": [
+      "Quick",
+      "Full",
+      "Forensic"
+    ],
+    "sources": [
+      "SQLite WAL",
+      "SQLite rollback journal",
+      "SQLite freelist pages"
+    ],
+    "limited_to_named_cheat_or_known_domain_fragments": true,
+    "timestamp_reliable": false,
+    "deleted_history_recovery_guaranteed": false,
+    "password_cookie_session_access": false
+  },
+  "all_disk_artifact_sweep": {
+    "enabled_in": [
+      "Quick",
+      "Full",
+      "Forensic"
+    ],
+    "drive_types": [
+      "Fixed",
+      "Removable"
+    ],
+    "read_only": true,
+    "mode_specific_caps_and_timeouts": true,
+    "reparse_points_followed": false
   }
 }

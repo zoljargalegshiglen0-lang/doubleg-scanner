@@ -1,8 +1,20 @@
 {
-  "version": "2.1.2-local",
+  "version": "2.1.5-local",
   "knownCheats": [],
   "knownHashes": [],
-  "knownDomains": [],
+  "knownDomains": [
+    "aimware.net",
+    "fatality.win",
+    "gamesense.pub",
+    "iniuria.us",
+    "midnight.im",
+    "neverlose.cc",
+    "nixware.cc",
+    "plaguecheat.cc",
+    "predator.systems",
+    "skeet.cc",
+    "undetek.com"
+  ],
   "highRiskKeywords": [
     "cs2 cheat",
     "counter strike cheat",
@@ -66,108 +78,55 @@
   ],
   "knownCheatNames": [
     {
-      "name": "Neverlose",
-      "family": "CS2 cheat platform",
+      "name": "420Cheats",
+      "family": "Multi-game cheat platform",
       "aliases": [
-        "neverlose",
-        "neverlosecc"
+        "420cheats"
+      ],
+      "exactAliases": [
+        "420cheats"
+      ],
+      "prefixAliases": [
+        "420cheats"
       ]
     },
     {
-      "name": "Fatality",
-      "family": "CS2 cheat platform",
+      "name": "5DollarCheats",
+      "family": "Multi-game cheat platform",
       "aliases": [
-        "fatalitywin",
-        "fatality cheat"
+        "5dollarcheats",
+        "5 dollar cheats"
+      ],
+      "exactAliases": [
+        "5dollarcheats"
+      ],
+      "prefixAliases": [
+        "5dollarcheats"
       ]
     },
     {
-      "name": "GameSense / Skeet",
-      "family": "CS2 cheat platform",
-      "aliases": [
-        "gamesense",
-        "skeetcc",
-        "skeet cheat"
+      "name": "Abyss",
+      "family": "CS2 cheat family",
+      "aliases": [],
+      "exactAliases": [
+        "abyss"
+      ],
+      "prefixAliases": [
+        "abyss"
       ]
     },
     {
-      "name": "Aimware",
-      "family": "CS2 cheat platform",
+      "name": "AimStar",
+      "family": "Open-source CS2 cheat family",
       "aliases": [
-        "aimware",
-        "aimware cheat"
-      ]
-    },
-    {
-      "name": "OneTap",
-      "family": "CS2 cheat platform",
-      "aliases": [
-        "onetap",
-        "onetap cheat"
-      ]
-    },
-    {
-      "name": "Nixware",
-      "family": "CS2 cheat platform",
-      "aliases": [
-        "nixware"
-      ]
-    },
-    {
-      "name": "Primordial",
-      "family": "CS2 cheat platform",
-      "aliases": [
-        "primordial cheat"
-      ]
-    },
-    {
-      "name": "Memesense",
-      "family": "CS2 cheat platform",
-      "aliases": [
-        "memesense"
-      ]
-    },
-    {
-      "name": "Legendware",
-      "family": "CS2 cheat platform",
-      "aliases": [
-        "legendware"
-      ]
-    },
-    {
-      "name": "Iniuria",
-      "family": "CS2 cheat platform",
-      "aliases": [
-        "iniuria"
-      ]
-    },
-    {
-      "name": "Interium",
-      "family": "CS2 cheat platform",
-      "aliases": [
-        "interium cheat"
-      ]
-    },
-    {
-      "name": "Osiris",
-      "family": "Open-source CS cheat family",
-      "aliases": [
-        "osiris cheat",
-        "osiris cs2"
-      ]
-    },
-    {
-      "name": "RatPoison",
-      "family": "CS cheat family",
-      "aliases": [
-        "ratpoison"
-      ]
-    },
-    {
-      "name": "Charlatano",
-      "family": "CS cheat family",
-      "aliases": [
-        "charlatano"
+        "aimstar cs2",
+        "aimstar cheat"
+      ],
+      "exactAliases": [
+        "aimstar"
+      ],
+      "prefixAliases": [
+        "aimstar"
       ]
     },
     {
@@ -175,21 +134,245 @@
       "family": "CS cheat family",
       "aliases": [
         "aimtux"
+      ],
+      "exactAliases": [
+        "aimtux"
+      ],
+      "prefixAliases": [
+        "aimtux"
       ]
     },
     {
-      "name": "Peterhook",
-      "family": "CS cheat family",
+      "name": "Aimware",
+      "family": "CS2 cheat family",
       "aliases": [
-        "peterhook"
+        "aimware",
+        "aimware cheat"
+      ],
+      "exactAliases": [
+        "aimware"
+      ],
+      "prefixAliases": [
+        "aimware"
       ]
     },
     {
-      "name": "Project Infinity",
+      "name": "Airflow",
+      "family": "CS2 cheat family",
+      "aliases": [
+        "airflow cs2 cheat",
+        "airflow cheat cs2"
+      ],
+      "exactAliases": [
+        "airflow"
+      ],
+      "prefixAliases": [
+        "airflow"
+      ]
+    },
+    {
+      "name": "Airflow Reloaded",
+      "family": "CS2 cheat family",
+      "aliases": [
+        "airflow reloaded"
+      ],
+      "exactAliases": [
+        "airflowreloaded"
+      ],
+      "prefixAliases": [
+        "airflowreloaded"
+      ]
+    },
+    {
+      "name": "Anyx",
+      "family": "CS2 cheat family",
+      "aliases": [
+        "anyx.gg",
+        "anyx cs2 cheat",
+        "anyx cheat"
+      ],
+      "exactAliases": [
+        "anyx"
+      ],
+      "prefixAliases": [
+        "anyx"
+      ]
+    },
+    {
+      "name": "Apex DMA",
+      "family": "DMA cheat family",
+      "aliases": [
+        "apex dma"
+      ],
+      "exactAliases": [
+        "apexdma"
+      ],
+      "prefixAliases": [
+        "apexdma"
+      ]
+    },
+    {
+      "name": "ArtificialAiming",
+      "family": "Multi-game cheat platform",
+      "aliases": [
+        "artificialaiming",
+        "artificial aiming cheat"
+      ],
+      "exactAliases": [
+        "artificialaiming"
+      ],
+      "prefixAliases": [
+        "artificialaiming"
+      ]
+    },
+    {
+      "name": "Asphyxia",
+      "family": "CS2 cheat family",
+      "aliases": [],
+      "exactAliases": [
+        "asphyxia"
+      ],
+      "prefixAliases": [
+        "asphyxia"
+      ]
+    },
+    {
+      "name": "Astral",
+      "family": "CS2 cheat family",
+      "aliases": [],
+      "exactAliases": [
+        "astral"
+      ],
+      "prefixAliases": [
+        "astral"
+      ]
+    },
+    {
+      "name": "Aurora",
+      "family": "CS2 cheat family",
+      "aliases": [],
+      "exactAliases": [
+        "aurora"
+      ],
+      "prefixAliases": [
+        "aurora"
+      ]
+    },
+    {
+      "name": "Baimless",
+      "family": "CS2 cheat family",
+      "aliases": [],
+      "exactAliases": [
+        "baimless"
+      ],
+      "prefixAliases": [
+        "baimless"
+      ]
+    },
+    {
+      "name": "Charlatano",
       "family": "CS cheat family",
       "aliases": [
-        "projectinfinity cheat",
-        "project infinity cheat"
+        "charlatano"
+      ],
+      "exactAliases": [
+        "charlatano"
+      ],
+      "prefixAliases": [
+        "charlatano"
+      ]
+    },
+    {
+      "name": "CheeseHack",
+      "family": "CS2 cheat family",
+      "aliases": [],
+      "exactAliases": [
+        "cheesehack"
+      ],
+      "prefixAliases": [
+        "cheesehack"
+      ]
+    },
+    {
+      "name": "Clutch Solution",
+      "family": "CS2 cheat family",
+      "aliases": [
+        "clutch solution cs2"
+      ],
+      "exactAliases": [
+        "clutchsolution"
+      ],
+      "prefixAliases": [
+        "clutchsolution"
+      ]
+    },
+    {
+      "name": "CS2-Cheats",
+      "family": "CS2 cheat distribution family",
+      "aliases": [
+        "cs2-cheats",
+        "cs2 cheats loader"
+      ],
+      "exactAliases": [
+        "cs2cheats"
+      ],
+      "prefixAliases": [
+        "cs2cheats"
+      ]
+    },
+    {
+      "name": "Darkside",
+      "family": "CS2 cheat family",
+      "aliases": [],
+      "exactAliases": [
+        "darkside"
+      ],
+      "prefixAliases": [
+        "darkside"
+      ]
+    },
+    {
+      "name": "DragonBurn",
+      "family": "CS2 cheat family",
+      "aliases": [],
+      "exactAliases": [
+        "dragonburn"
+      ],
+      "prefixAliases": [
+        "dragonburn"
+      ]
+    },
+    {
+      "name": "EC-CS2",
+      "family": "CS2 cheat family",
+      "aliases": [],
+      "exactAliases": [
+        "eccs2"
+      ],
+      "prefixAliases": [
+        "eccs2"
+      ]
+    },
+    {
+      "name": "Ech0",
+      "family": "CS2 cheat family",
+      "aliases": [],
+      "exactAliases": [
+        "ech0"
+      ],
+      "prefixAliases": [
+        "ech0"
+      ]
+    },
+    {
+      "name": "Eclipse",
+      "family": "CS2 cheat family",
+      "aliases": [],
+      "exactAliases": [
+        "eclipse"
+      ],
+      "prefixAliases": [
+        "eclipse"
       ]
     },
     {
@@ -197,6 +380,180 @@
       "family": "CS cheat family",
       "aliases": [
         "ekknod"
+      ],
+      "exactAliases": [
+        "ekknod"
+      ],
+      "prefixAliases": [
+        "ekknod"
+      ]
+    },
+    {
+      "name": "Elitepvpers Releases",
+      "family": "Community cheat release source",
+      "aliases": [
+        "elitepvpers cs2 release",
+        "elitepvpers cheat release"
+      ],
+      "exactAliases": [
+        "elitepvpers",
+        "elitepvpersreleases"
+      ],
+      "prefixAliases": [
+        "elitepvpers"
+      ]
+    },
+    {
+      "name": "Elusion",
+      "family": "CS cheat family",
+      "aliases": [
+        "elusion cheat",
+        "elusion cs2"
+      ],
+      "exactAliases": [
+        "elusion"
+      ],
+      "prefixAliases": [
+        "elusion"
+      ]
+    },
+    {
+      "name": "En1gma",
+      "family": "CS2 cheat family",
+      "aliases": [],
+      "exactAliases": [
+        "en1gma"
+      ],
+      "prefixAliases": [
+        "en1gma"
+      ]
+    },
+    {
+      "name": "EngineOwning",
+      "family": "Multi-game cheat platform",
+      "aliases": [
+        "engineowning",
+        "engine owning cheat"
+      ],
+      "exactAliases": [
+        "engineowning"
+      ],
+      "prefixAliases": [
+        "engineowning"
+      ]
+    },
+    {
+      "name": "Ev0lve",
+      "family": "CS cheat family",
+      "aliases": [],
+      "exactAliases": [
+        "ev0lve"
+      ],
+      "prefixAliases": [
+        "ev0lve"
+      ]
+    },
+    {
+      "name": "Evide",
+      "family": "CS cheat family",
+      "aliases": [
+        "evide cheat",
+        "evide cs2"
+      ],
+      "exactAliases": [
+        "evide"
+      ],
+      "prefixAliases": [
+        "evide"
+      ]
+    },
+    {
+      "name": "Exloader",
+      "family": "Cheat loader platform",
+      "aliases": [
+        "exloader"
+      ],
+      "exactAliases": [
+        "exloader"
+      ],
+      "prefixAliases": [
+        "exloader"
+      ]
+    },
+    {
+      "name": "Externity",
+      "family": "CS2 cheat family",
+      "aliases": [],
+      "exactAliases": [
+        "externity"
+      ],
+      "prefixAliases": [
+        "externity"
+      ]
+    },
+    {
+      "name": "EZFrags",
+      "family": "CS cheat family",
+      "aliases": [
+        "ezfrags"
+      ],
+      "exactAliases": [
+        "ezfrags"
+      ],
+      "prefixAliases": [
+        "ezfrags"
+      ]
+    },
+    {
+      "name": "Fantasy.cat",
+      "family": "External cheat platform",
+      "aliases": [
+        "fantasy.cat"
+      ],
+      "exactAliases": [
+        "fantasycat"
+      ],
+      "prefixAliases": [
+        "fantasycat"
+      ]
+    },
+    {
+      "name": "Fatality",
+      "family": "CS2 cheat family",
+      "aliases": [
+        "fatalitywin",
+        "fatality cheat"
+      ],
+      "exactAliases": [
+        "fatality"
+      ],
+      "prefixAliases": [
+        "fatality"
+      ]
+    },
+    {
+      "name": "FataMorgana",
+      "family": "CS cheat family",
+      "aliases": [
+        "fatamorgana cheat",
+        "fata morgana cs2"
+      ],
+      "exactAliases": [
+        "fatamorgana"
+      ],
+      "prefixAliases": [
+        "fatamorgana"
+      ]
+    },
+    {
+      "name": "Fecurity",
+      "family": "CS2 cheat family",
+      "aliases": [],
+      "exactAliases": [
+        "fecurity"
+      ],
+      "prefixAliases": [
+        "fecurity"
       ]
     },
     {
@@ -204,13 +561,837 @@
       "family": "CS cheat family",
       "aliases": [
         "fuzion cheat"
+      ],
+      "exactAliases": [
+        "fuzion"
+      ],
+      "prefixAliases": [
+        "fuzion"
       ]
     },
     {
-      "name": "ExLoader",
-      "family": "Cheat loader",
+      "name": "Gamesense (Skeet)",
+      "family": "CS2 cheat family",
       "aliases": [
-        "exloader"
+        "gamesense",
+        "skeetcc",
+        "skeet cheat",
+        "gamesense.pub",
+        "gamesense cheat",
+        "skeet.cc"
+      ],
+      "exactAliases": [
+        "gamesense",
+        "skeet"
+      ],
+      "prefixAliases": [
+        "gamesense",
+        "skeet"
+      ]
+    },
+    {
+      "name": "Hardline",
+      "family": "CS2 cheat family",
+      "aliases": [],
+      "exactAliases": [
+        "hardline"
+      ],
+      "prefixAliases": [
+        "hardline"
+      ]
+    },
+    {
+      "name": "Hexui",
+      "family": "CS2 cheat family",
+      "aliases": [],
+      "exactAliases": [
+        "hexui"
+      ],
+      "prefixAliases": [
+        "hexui"
+      ]
+    },
+    {
+      "name": "HVHGod",
+      "family": "CS2 cheat family",
+      "aliases": [
+        "hvhgod",
+        "hvh god cheat"
+      ],
+      "exactAliases": [
+        "hvhgod"
+      ],
+      "prefixAliases": [
+        "hvhgod"
+      ]
+    },
+    {
+      "name": "Iniuria",
+      "family": "CS2 cheat family",
+      "aliases": [
+        "iniuria"
+      ],
+      "exactAliases": [
+        "iniuria"
+      ],
+      "prefixAliases": [
+        "iniuria"
+      ]
+    },
+    {
+      "name": "Interium",
+      "family": "CS cheat family",
+      "aliases": [
+        "interium cheat"
+      ],
+      "exactAliases": [
+        "interium"
+      ],
+      "prefixAliases": [
+        "interium"
+      ]
+    },
+    {
+      "name": "InvisionCheats",
+      "family": "Multi-game cheat platform",
+      "aliases": [
+        "invisioncheats"
+      ],
+      "exactAliases": [
+        "invisioncheats"
+      ],
+      "prefixAliases": [
+        "invisioncheats"
+      ]
+    },
+    {
+      "name": "Kernaim",
+      "family": "External / kernel-assisted cheat platform",
+      "aliases": [
+        "kernaim",
+        "kern aim",
+        "kernaim cs2"
+      ],
+      "exactAliases": [],
+      "prefixAliases": [
+        "kernaim"
+      ]
+    },
+    {
+      "name": "Koryo",
+      "family": "CS2 cheat family",
+      "aliases": [],
+      "exactAliases": [
+        "koryo"
+      ],
+      "prefixAliases": [
+        "koryo"
+      ]
+    },
+    {
+      "name": "KVM DMA",
+      "family": "DMA cheat family",
+      "aliases": [
+        "kvm dma"
+      ],
+      "exactAliases": [
+        "kvmdma"
+      ],
+      "prefixAliases": [
+        "kvmdma"
+      ]
+    },
+    {
+      "name": "Legendware",
+      "family": "CS cheat family",
+      "aliases": [
+        "legendware"
+      ],
+      "exactAliases": [
+        "legendware"
+      ],
+      "prefixAliases": [
+        "legendware"
+      ]
+    },
+    {
+      "name": "Lethality",
+      "family": "CS2 cheat family",
+      "aliases": [],
+      "exactAliases": [
+        "lethality"
+      ],
+      "prefixAliases": [
+        "lethality"
+      ]
+    },
+    {
+      "name": "LuckyCharms",
+      "family": "CS cheat family",
+      "aliases": [
+        "luckycharms cheat",
+        "lucky charms cs2"
+      ],
+      "exactAliases": [
+        "luckycharms"
+      ],
+      "prefixAliases": [
+        "luckycharms"
+      ]
+    },
+    {
+      "name": "Melatonin",
+      "family": "CS2 cheat family",
+      "aliases": [],
+      "exactAliases": [
+        "melatonin"
+      ],
+      "prefixAliases": [
+        "melatonin"
+      ]
+    },
+    {
+      "name": "Memesense",
+      "family": "CS2 cheat family",
+      "aliases": [
+        "memesense"
+      ],
+      "exactAliases": [
+        "memesense"
+      ],
+      "prefixAliases": [
+        "memesense"
+      ]
+    },
+    {
+      "name": "Midnight",
+      "family": "CS2 cheat family",
+      "aliases": [
+        "midnight.im",
+        "midnight cs2 cheat",
+        "midnight cheat cs2"
+      ],
+      "exactAliases": [
+        "midnight"
+      ],
+      "prefixAliases": [
+        "midnight"
+      ]
+    },
+    {
+      "name": "Midnight Lite",
+      "family": "CS2 cheat family",
+      "aliases": [
+        "midnight lite"
+      ],
+      "exactAliases": [
+        "midnightlite"
+      ],
+      "prefixAliases": [
+        "midnightlite"
+      ]
+    },
+    {
+      "name": "Monolith",
+      "family": "CS cheat family",
+      "aliases": [
+        "monolith cs2 cheat",
+        "monolith cheat cs2"
+      ],
+      "exactAliases": [
+        "monolith"
+      ],
+      "prefixAliases": [
+        "monolith"
+      ]
+    },
+    {
+      "name": "Moonlight",
+      "family": "CS2 cheat family",
+      "aliases": [],
+      "exactAliases": [
+        "moonlight"
+      ],
+      "prefixAliases": [
+        "moonlight"
+      ]
+    },
+    {
+      "name": "Moonlight DMA",
+      "family": "DMA cheat family",
+      "aliases": [
+        "moonlight dma"
+      ],
+      "exactAliases": [
+        "moonlightdma"
+      ],
+      "prefixAliases": [
+        "moonlightdma"
+      ]
+    },
+    {
+      "name": "Necrum",
+      "family": "CS2 cheat family",
+      "aliases": [],
+      "exactAliases": [
+        "necrum"
+      ],
+      "prefixAliases": [
+        "necrum"
+      ]
+    },
+    {
+      "name": "Neverloose",
+      "family": "Separate CS2 cheat family",
+      "aliases": [
+        "neverloose cheat",
+        "neverloose cs2"
+      ],
+      "exactAliases": [
+        "neverloose"
+      ],
+      "prefixAliases": [
+        "neverloose"
+      ]
+    },
+    {
+      "name": "Neverlose",
+      "family": "CS2 cheat family",
+      "aliases": [
+        "neverlose",
+        "neverlosecc"
+      ],
+      "exactAliases": [
+        "neverlose"
+      ],
+      "prefixAliases": [
+        "neverlose"
+      ]
+    },
+    {
+      "name": "Nexus",
+      "family": "CS2 cheat family",
+      "aliases": [],
+      "exactAliases": [
+        "nexus"
+      ],
+      "prefixAliases": [
+        "nexus"
+      ]
+    },
+    {
+      "name": "Nightfall",
+      "family": "CS2 cheat family",
+      "aliases": [],
+      "exactAliases": [
+        "nightfall"
+      ],
+      "prefixAliases": [
+        "nightfall"
+      ]
+    },
+    {
+      "name": "Nixware",
+      "family": "CS2 cheat family",
+      "aliases": [
+        "nixware"
+      ],
+      "exactAliases": [
+        "nixware"
+      ],
+      "prefixAliases": [
+        "nixware"
+      ]
+    },
+    {
+      "name": "Novoline",
+      "family": "Multi-game cheat platform",
+      "aliases": [],
+      "exactAliases": [
+        "novoline"
+      ],
+      "prefixAliases": [
+        "novoline"
+      ]
+    },
+    {
+      "name": "Omniaim",
+      "family": "CS2 cheat family",
+      "aliases": [],
+      "exactAliases": [
+        "omniaim"
+      ],
+      "prefixAliases": [
+        "omniaim"
+      ]
+    },
+    {
+      "name": "Onetap",
+      "family": "Legacy CS:GO cheat family",
+      "aliases": [
+        "onetap",
+        "onetap cheat"
+      ],
+      "exactAliases": [
+        "onetap"
+      ],
+      "prefixAliases": [
+        "onetap"
+      ]
+    },
+    {
+      "name": "Orbit",
+      "family": "CS2 cheat family",
+      "aliases": [],
+      "exactAliases": [
+        "orbit"
+      ],
+      "prefixAliases": [
+        "orbit"
+      ]
+    },
+    {
+      "name": "Osiris",
+      "family": "CS2 cheat family",
+      "aliases": [
+        "osiris cheat",
+        "osiris cs2"
+      ],
+      "exactAliases": [
+        "osiris"
+      ],
+      "prefixAliases": [
+        "osiris"
+      ]
+    },
+    {
+      "name": "Oxide",
+      "family": "CS2 cheat family",
+      "aliases": [
+        "oxide.wtf",
+        "oxide cs2 cheat",
+        "oxide cheat cs2"
+      ],
+      "exactAliases": [
+        "oxide"
+      ],
+      "prefixAliases": [
+        "oxide"
+      ]
+    },
+    {
+      "name": "Pandora",
+      "family": "CS2 cheat family",
+      "aliases": [
+        "pandora cs2 cheat",
+        "pandora cheat cs2"
+      ],
+      "exactAliases": [
+        "pandora"
+      ],
+      "prefixAliases": [
+        "pandora"
+      ]
+    },
+    {
+      "name": "PerfectAim",
+      "family": "Multi-game cheat platform",
+      "aliases": [
+        "perfectaim",
+        "perfect aim cheat"
+      ],
+      "exactAliases": [
+        "perfectaim"
+      ],
+      "prefixAliases": [
+        "perfectaim"
+      ]
+    },
+    {
+      "name": "PeterHook",
+      "family": "CS2 cheat family",
+      "aliases": [
+        "peterhook"
+      ],
+      "exactAliases": [
+        "peterhook"
+      ],
+      "prefixAliases": [
+        "peterhook"
+      ]
+    },
+    {
+      "name": "Phantom",
+      "family": "CS2 cheat family",
+      "aliases": [],
+      "exactAliases": [
+        "phantom"
+      ],
+      "prefixAliases": [
+        "phantom"
+      ]
+    },
+    {
+      "name": "Phantom Overlay",
+      "family": "External cheat platform",
+      "aliases": [
+        "phantomoverlay",
+        "phantom overlay cs2"
+      ],
+      "exactAliases": [
+        "phantomoverlay"
+      ],
+      "prefixAliases": [
+        "phantomoverlay"
+      ]
+    },
+    {
+      "name": "Plague",
+      "family": "CS2 cheat family",
+      "aliases": [
+        "plaguecheat",
+        "plaguecheat.cc",
+        "plague cheat cs2"
+      ],
+      "exactAliases": [
+        "plague"
+      ],
+      "prefixAliases": [
+        "plaguecheat",
+        "plague"
+      ]
+    },
+    {
+      "name": "Precision Cheats",
+      "family": "Multi-game cheat platform",
+      "aliases": [
+        "precision cheats cs2",
+        "precisioncheats"
+      ],
+      "exactAliases": [
+        "precisioncheats"
+      ],
+      "prefixAliases": [
+        "precisioncheats"
+      ]
+    },
+    {
+      "name": "Predator",
+      "family": "CS2 cheat family",
+      "aliases": [],
+      "exactAliases": [
+        "predator"
+      ],
+      "prefixAliases": [
+        "predator"
+      ]
+    },
+    {
+      "name": "Predator Systems",
+      "family": "CS2 cheat platform",
+      "aliases": [
+        "predator.systems",
+        "predator systems cs2",
+        "predator cs2 cheat"
+      ],
+      "exactAliases": [
+        "predatorsystems"
+      ],
+      "prefixAliases": [
+        "predatorsystems"
+      ]
+    },
+    {
+      "name": "Primordial",
+      "family": "CS2 cheat family",
+      "aliases": [
+        "primordial cheat"
+      ],
+      "exactAliases": [
+        "primordial"
+      ],
+      "prefixAliases": [
+        "primordial"
+      ]
+    },
+    {
+      "name": "Project Infinity",
+      "family": "CS2 cheat family",
+      "aliases": [
+        "projectinfinity cheat",
+        "project infinity cheat"
+      ],
+      "exactAliases": [
+        "projectinfinity"
+      ],
+      "prefixAliases": [
+        "projectinfinity"
+      ]
+    },
+    {
+      "name": "RatPoison",
+      "family": "CS cheat family",
+      "aliases": [
+        "ratpoison"
+      ],
+      "exactAliases": [
+        "ratpoison"
+      ],
+      "prefixAliases": [
+        "ratpoison"
+      ]
+    },
+    {
+      "name": "Rawetrip",
+      "family": "CS cheat family",
+      "aliases": [
+        "rawetrip"
+      ],
+      "exactAliases": [],
+      "prefixAliases": [
+        "rawetrip"
+      ]
+    },
+    {
+      "name": "Redeye Cheats",
+      "family": "Multi-game cheat platform",
+      "aliases": [
+        "redeye cheats",
+        "redeyecheats"
+      ],
+      "exactAliases": [
+        "redeyecheats"
+      ],
+      "prefixAliases": [
+        "redeyecheats"
+      ]
+    },
+    {
+      "name": "Rifk7",
+      "family": "CS2 cheat family",
+      "aliases": [
+        "rifk7"
+      ],
+      "exactAliases": [
+        "rifk7"
+      ],
+      "prefixAliases": [
+        "rifk7"
+      ]
+    },
+    {
+      "name": "Sapphire",
+      "family": "CS cheat family",
+      "aliases": [
+        "sapphire cs2 cheat",
+        "sapphire cheat cs2"
+      ],
+      "exactAliases": [
+        "sapphire"
+      ],
+      "prefixAliases": [
+        "sapphire"
+      ]
+    },
+    {
+      "name": "Satan5",
+      "family": "CS2 cheat family",
+      "aliases": [],
+      "exactAliases": [
+        "satan5"
+      ],
+      "prefixAliases": [
+        "satan5"
+      ]
+    },
+    {
+      "name": "Sensum",
+      "family": "CS cheat family",
+      "aliases": [
+        "sensum cheat",
+        "sensum cs2"
+      ],
+      "exactAliases": [
+        "sensum"
+      ],
+      "prefixAliases": [
+        "sensum"
+      ]
+    },
+    {
+      "name": "SharkHack",
+      "family": "CS2 cheat family",
+      "aliases": [],
+      "exactAliases": [
+        "sharkhack"
+      ],
+      "prefixAliases": [
+        "sharkhack"
+      ]
+    },
+    {
+      "name": "Stern",
+      "family": "CS2 cheat family",
+      "aliases": [],
+      "exactAliases": [
+        "stern"
+      ],
+      "prefixAliases": [
+        "stern"
+      ]
+    },
+    {
+      "name": "Supremacy",
+      "family": "CS cheat family",
+      "aliases": [
+        "supremacy cs2 cheat",
+        "supremacy cheat cs2"
+      ],
+      "exactAliases": [
+        "supremacy"
+      ],
+      "prefixAliases": [
+        "supremacy"
+      ]
+    },
+    {
+      "name": "Sysware",
+      "family": "CS2 cheat family",
+      "aliases": [],
+      "exactAliases": [
+        "sysware"
+      ],
+      "prefixAliases": [
+        "sysware"
+      ]
+    },
+    {
+      "name": "Undetek",
+      "family": "CS2 cheat family",
+      "aliases": [
+        "undetek.com",
+        "undetek cheat",
+        "undetek cs2",
+        "undetek client"
+      ],
+      "exactAliases": [
+        "undetek"
+      ],
+      "prefixAliases": [
+        "undetek"
+      ]
+    },
+    {
+      "name": "UnknownCheats Releases",
+      "family": "Community cheat release source",
+      "aliases": [
+        "unknowncheats cs2 release",
+        "unknowncheats cheat release"
+      ],
+      "exactAliases": [
+        "unknowncheats",
+        "unknowncheatsreleases"
+      ],
+      "prefixAliases": [
+        "unknowncheats"
+      ]
+    },
+    {
+      "name": "Valthrun",
+      "family": "CS2 cheat family",
+      "aliases": [],
+      "exactAliases": [
+        "valthrun"
+      ],
+      "prefixAliases": [
+        "valthrun"
+      ]
+    },
+    {
+      "name": "Vanity",
+      "family": "CS2 cheat platform",
+      "aliases": [
+        "vanity cs2 cheat",
+        "vanitycheats",
+        "vanity cheat cs2"
+      ],
+      "exactAliases": [
+        "vanity"
+      ],
+      "prefixAliases": [
+        "vanity"
+      ]
+    },
+    {
+      "name": "VisionCloud",
+      "family": "CS2 cheat family",
+      "aliases": [],
+      "exactAliases": [
+        "visioncloud"
+      ],
+      "prefixAliases": [
+        "visioncloud"
+      ]
+    },
+    {
+      "name": "Voidware",
+      "family": "CS2 cheat family",
+      "aliases": [],
+      "exactAliases": [
+        "voidware"
+      ],
+      "prefixAliases": [
+        "voidware"
+      ]
+    },
+    {
+      "name": "VRedux",
+      "family": "CS2 cheat family",
+      "aliases": [],
+      "exactAliases": [
+        "vredux"
+      ],
+      "prefixAliases": [
+        "vredux"
+      ]
+    },
+    {
+      "name": "Weave",
+      "family": "CS2 cheat family",
+      "aliases": [
+        "weave cs2 cheat",
+        "weave cheat cs2"
+      ],
+      "exactAliases": [
+        "weave"
+      ],
+      "prefixAliases": [
+        "weave"
+      ]
+    },
+    {
+      "name": "Weebware",
+      "family": "CS2 cheat family",
+      "aliases": [],
+      "exactAliases": [
+        "weebware"
+      ],
+      "prefixAliases": [
+        "weebware"
+      ]
+    },
+    {
+      "name": "Xone",
+      "family": "CS2 cheat family",
+      "aliases": [
+        "xone cs2 cheat",
+        "xone cheat cs2"
+      ],
+      "exactAliases": [
+        "xone"
+      ],
+      "prefixAliases": [
+        "xone"
       ]
     }
   ],

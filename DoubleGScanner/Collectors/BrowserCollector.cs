@@ -1,6 +1,7 @@
 using DoubleGScanner.Models;
 using DoubleGScanner.Services;
 using Microsoft.Data.Sqlite;
+using System.Text;
 
 namespace DoubleGScanner.Collectors;
 
@@ -19,6 +20,9 @@ public sealed class BrowserCollector : IScanCollector
         int checkedRows = 0;
         int profiles = 0;
         bool partial = false;
+        var recoveredKeys =
+            new HashSet<string>(
+                StringComparer.OrdinalIgnoreCase);
 
         foreach (Profile profile in Discover())
         {
@@ -55,6 +59,22 @@ public sealed class BrowserCollector : IScanCollector
                         context.Mode,
                         evidence,
                         token);
+
+                ResidualRecoveryResult recovery =
+                    await RecoverResidualBrowserFragmentsAsync(
+                        copy,
+                        profile,
+                        context.Rules,
+                        context.Mode,
+                        evidence,
+                        recoveredKeys,
+                        token);
+
+                checkedRows +=
+                    recovery.PagesOrChunksScanned;
+
+                if (recovery.Partial)
+                    partial = true;
             }
             catch
             {
@@ -72,7 +92,7 @@ public sealed class BrowserCollector : IScanCollector
                     : CoverageStatus.Completed,
             Summary = profiles == 0
                 ? "No supported browser history database was found."
-                : $"Checked {checkedRows:N0} local browser records across {profiles} profile(s) and retained {evidence.Count:N0} relevant visit/download records. Quick Scan includes recent executable/archive downloads even when the local file has been deleted.",
+                : $"Checked {checkedRows:N0} browser rows/pages across {profiles} profile(s) and retained {evidence.Count:N0} relevant active or residual records. SQLite WAL, rollback-journal, and freelist fragments were sampled read-only; deleted history recovery is not guaranteed after overwrite or VACUUM.",
             Evidence = evidence,
             ItemsChecked = checkedRows,
             Duration = DateTime.UtcNow - started
@@ -598,6 +618,47 @@ public sealed class BrowserCollector : IScanCollector
                 directory,
                 Path.GetFileName(source));
 
+        await CopySharedFileAsync(
+            source,
+            destination,
+            token);
+
+        foreach (string suffix in
+                 new[]
+                 {
+                     "-wal",
+                     "-shm",
+                     "-journal"
+                 })
+        {
+            string companionSource =
+                source + suffix;
+
+            if (!File.Exists(companionSource))
+                continue;
+
+            try
+            {
+                await CopySharedFileAsync(
+                    companionSource,
+                    destination + suffix,
+                    token);
+            }
+            catch
+            {
+                // The main database copy remains usable even when a live
+                // companion file changes or becomes unavailable.
+            }
+        }
+
+        return destination;
+    }
+
+    private static async Task CopySharedFileAsync(
+        string source,
+        string destination,
+        CancellationToken token)
+    {
         await using FileStream input =
             new(
                 source,
@@ -611,15 +672,694 @@ public sealed class BrowserCollector : IScanCollector
         await using FileStream output =
             new(
                 destination,
-                FileMode.CreateNew,
+                FileMode.Create,
                 FileAccess.Write,
                 FileShare.None,
                 1024 * 1024,
                 true);
 
-        await input.CopyToAsync(output, token);
-        return destination;
+        await input.CopyToAsync(
+            output,
+            token);
     }
+
+    private static async Task<ResidualRecoveryResult>
+        RecoverResidualBrowserFragmentsAsync(
+            string databasePath,
+            Profile profile,
+            RuleSet rules,
+            ScanMode mode,
+            List<EvidenceRecord> evidence,
+            HashSet<string> recoveredKeys,
+            CancellationToken token)
+    {
+        int maxPages = mode switch
+        {
+            ScanMode.Quick => 256,
+            ScanMode.Full => 1_024,
+            _ => 4_096
+        };
+
+        int maxEvidence = mode switch
+        {
+            ScanMode.Quick => 120,
+            ScanMode.Full => 500,
+            _ => 1_500
+        };
+
+        int scanned = 0;
+        bool partial = false;
+
+        try
+        {
+            scanned += await ScanSqliteFreelistAsync(
+                databasePath,
+                "SQLite freelist",
+                profile,
+                rules,
+                maxPages,
+                maxEvidence,
+                evidence,
+                recoveredKeys,
+                token);
+        }
+        catch
+        {
+            partial = true;
+        }
+
+        try
+        {
+            scanned += await ScanWalAsync(
+                databasePath + "-wal",
+                "SQLite WAL",
+                profile,
+                rules,
+                maxPages,
+                maxEvidence,
+                evidence,
+                recoveredKeys,
+                token);
+        }
+        catch
+        {
+            partial = true;
+        }
+
+        try
+        {
+            scanned += await ScanRawCompanionAsync(
+                databasePath + "-journal",
+                "SQLite rollback journal",
+                profile,
+                rules,
+                mode,
+                maxEvidence,
+                evidence,
+                recoveredKeys,
+                token);
+        }
+        catch
+        {
+            partial = true;
+        }
+
+        return new ResidualRecoveryResult(
+            scanned,
+            partial);
+    }
+
+    private static async Task<int> ScanSqliteFreelistAsync(
+        string path,
+        string recoverySource,
+        Profile profile,
+        RuleSet rules,
+        int maxPages,
+        int maxEvidence,
+        List<EvidenceRecord> evidence,
+        HashSet<string> recoveredKeys,
+        CancellationToken token)
+    {
+        if (!File.Exists(path))
+            return 0;
+
+        await using FileStream stream =
+            new(
+                path,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.ReadWrite |
+                FileShare.Delete,
+                1024 * 1024,
+                true);
+
+        if (stream.Length < 100)
+            return 0;
+
+        byte[] header = new byte[100];
+        if (await ReadExactlyAsync(
+                stream,
+                header,
+                token) < header.Length)
+            return 0;
+
+        int pageSize =
+            ReadUInt16BigEndian(
+                header,
+                16);
+
+        if (pageSize == 1)
+            pageSize = 65_536;
+
+        if (pageSize < 512 ||
+            pageSize > 65_536)
+            return 0;
+
+        uint trunkPage =
+            ReadUInt32BigEndian(
+                header,
+                32);
+
+        uint declaredFreePages =
+            ReadUInt32BigEndian(
+                header,
+                36);
+
+        if (trunkPage == 0 ||
+            declaredFreePages == 0)
+            return 0;
+
+        int scanned = 0;
+        var visited =
+            new HashSet<uint>();
+
+        byte[] page =
+            new byte[pageSize];
+
+        while (
+            trunkPage > 0 &&
+            scanned < maxPages &&
+            visited.Add(trunkPage))
+        {
+            token.ThrowIfCancellationRequested();
+
+            if (!await ReadPageAsync(
+                    stream,
+                    trunkPage,
+                    page,
+                    token))
+                break;
+
+            uint nextTrunk =
+                ReadUInt32BigEndian(
+                    page,
+                    0);
+
+            uint leafCount =
+                Math.Min(
+                    ReadUInt32BigEndian(
+                        page,
+                        4),
+                    (uint)Math.Max(
+                        0,
+                        (pageSize - 8) / 4));
+
+            for (
+                uint index = 0;
+                index < leafCount &&
+                scanned < maxPages;
+                index++)
+            {
+                uint leafPage =
+                    ReadUInt32BigEndian(
+                        page,
+                        8 + checked((int)index * 4));
+
+                if (leafPage == 0)
+                    continue;
+
+                if (!await ReadPageAsync(
+                        stream,
+                        leafPage,
+                        page,
+                        token))
+                    continue;
+
+                scanned++;
+
+                AddRecoveredFragments(
+                    page,
+                    recoverySource,
+                    profile,
+                    rules,
+                    maxEvidence,
+                    evidence,
+                    recoveredKeys);
+            }
+
+            trunkPage = nextTrunk;
+        }
+
+        return scanned;
+    }
+
+    private static async Task<int> ScanWalAsync(
+        string path,
+        string recoverySource,
+        Profile profile,
+        RuleSet rules,
+        int maxPages,
+        int maxEvidence,
+        List<EvidenceRecord> evidence,
+        HashSet<string> recoveredKeys,
+        CancellationToken token)
+    {
+        if (!File.Exists(path))
+            return 0;
+
+        await using FileStream stream =
+            new(
+                path,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.ReadWrite |
+                FileShare.Delete,
+                1024 * 1024,
+                true);
+
+        if (stream.Length < 32)
+            return 0;
+
+        byte[] header = new byte[32];
+        if (await ReadExactlyAsync(
+                stream,
+                header,
+                token) < header.Length)
+            return 0;
+
+        int pageSize =
+            checked((int)ReadUInt32BigEndian(
+                header,
+                8));
+
+        if (pageSize == 0)
+            pageSize = 65_536;
+
+        if (pageSize < 512 ||
+            pageSize > 65_536)
+            return 0;
+
+        int frameSize =
+            checked(
+                24 +
+                pageSize);
+
+        byte[] frame =
+            new byte[frameSize];
+
+        int scanned = 0;
+
+        while (
+            scanned < maxPages &&
+            stream.Position + frameSize <=
+            stream.Length)
+        {
+            token.ThrowIfCancellationRequested();
+
+            int read =
+                await ReadExactlyAsync(
+                    stream,
+                    frame,
+                    token);
+
+            if (read < frameSize)
+                break;
+
+            scanned++;
+
+            AddRecoveredFragments(
+                frame.AsSpan(
+                    24,
+                    pageSize),
+                recoverySource,
+                profile,
+                rules,
+                maxEvidence,
+                evidence,
+                recoveredKeys);
+        }
+
+        return scanned;
+    }
+
+    private static async Task<int> ScanRawCompanionAsync(
+        string path,
+        string recoverySource,
+        Profile profile,
+        RuleSet rules,
+        ScanMode mode,
+        int maxEvidence,
+        List<EvidenceRecord> evidence,
+        HashSet<string> recoveredKeys,
+        CancellationToken token)
+    {
+        if (!File.Exists(path))
+            return 0;
+
+        long byteLimit = mode switch
+        {
+            ScanMode.Quick =>
+                8L * 1024 * 1024,
+            ScanMode.Full =>
+                32L * 1024 * 1024,
+            _ =>
+                128L * 1024 * 1024
+        };
+
+        await using FileStream stream =
+            new(
+                path,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.ReadWrite |
+                FileShare.Delete,
+                1024 * 1024,
+                true);
+
+        byte[] buffer =
+            new byte[64 * 1024];
+
+        long readTotal = 0;
+        int chunks = 0;
+
+        while (
+            readTotal < byteLimit)
+        {
+            token.ThrowIfCancellationRequested();
+
+            int requested =
+                (int)Math.Min(
+                    buffer.Length,
+                    byteLimit -
+                    readTotal);
+
+            int read =
+                await stream.ReadAsync(
+                    buffer.AsMemory(
+                        0,
+                        requested),
+                    token);
+
+            if (read == 0)
+                break;
+
+            readTotal += read;
+            chunks++;
+
+            AddRecoveredFragments(
+                buffer.AsSpan(
+                    0,
+                    read),
+                recoverySource,
+                profile,
+                rules,
+                maxEvidence,
+                evidence,
+                recoveredKeys);
+        }
+
+        return chunks;
+    }
+
+    private static void AddRecoveredFragments(
+        ReadOnlySpan<byte> bytes,
+        string recoverySource,
+        Profile profile,
+        RuleSet rules,
+        int maxEvidence,
+        List<EvidenceRecord> evidence,
+        HashSet<string> recoveredKeys)
+    {
+        if (evidence.Count >= maxEvidence)
+            return;
+
+        foreach (string fragment in
+                 ExtractPrintableRuns(
+                     bytes,
+                     5,
+                     640))
+        {
+            KnownCheatNameEntry? named =
+                RuleMatcher.FindKnownCheatName(
+                    fragment,
+                    rules);
+
+            bool knownDomain =
+                RuleMatcher.IsKnownDomain(
+                    fragment,
+                    rules);
+
+            if (named is null &&
+                !knownDomain)
+                continue;
+
+            string familyName =
+                named?.Name ??
+                "Known cheat distribution domain";
+
+            string key =
+                string.Join(
+                    "|",
+                    profile.Browser,
+                    profile.Name,
+                    recoverySource,
+                    familyName);
+
+            if (!recoveredKeys.Add(key))
+                continue;
+
+            evidence.Add(
+                new EvidenceRecord
+                {
+                    Kind =
+                        EvidenceKind.Browser,
+                    Source =
+                        "Browser residual recovery",
+                    Name =
+                        familyName,
+                    Url =
+                        TryExtractUrl(
+                            fragment),
+                    Detail =
+                        "A named cheat-family or known-domain fragment was recovered from SQLite residual storage. It may represent deleted, stale, or duplicated browser history and has no reliable visit timestamp.",
+                    Metadata =
+                        new Dictionary<string, string>(
+                            StringComparer.OrdinalIgnoreCase)
+                        {
+                            ["Browser"] =
+                                profile.Browser,
+                            ["Profile"] =
+                                profile.Name,
+                            ["RecordType"] =
+                                "RecoveredBrowserFragment",
+                            ["RecoverySource"] =
+                                recoverySource,
+                            ["FamilyName"] =
+                                familyName,
+                            ["DeletedHistoryPossible"] =
+                                "True",
+                            ["TimestampReliable"] =
+                                "False",
+                            ["RecoveredFragment"] =
+                                TruncateFragment(
+                                    fragment,
+                                    320)
+                        }
+                });
+
+            if (evidence.Count >= maxEvidence)
+                break;
+        }
+    }
+
+    private static IReadOnlyList<string>
+        ExtractPrintableRuns(
+            ReadOnlySpan<byte> bytes,
+            int minimumLength,
+            int maximumLength)
+    {
+        var output =
+            new List<string>();
+
+        var builder =
+            new StringBuilder();
+
+        for (int index = 0;
+             index < bytes.Length;
+             index++)
+        {
+            byte value =
+                bytes[index];
+
+            if (value is >= 32 and <= 126)
+            {
+                if (builder.Length <
+                    maximumLength)
+                {
+                    builder.Append(
+                        (char)value);
+                }
+
+                continue;
+            }
+
+            FlushPrintableRun(
+                builder,
+                output,
+                minimumLength);
+        }
+
+        FlushPrintableRun(
+            builder,
+            output,
+            minimumLength);
+
+        return output;
+    }
+
+    private static void FlushPrintableRun(
+        StringBuilder builder,
+        List<string> output,
+        int minimumLength)
+    {
+        if (builder.Length >= minimumLength)
+        {
+            string value =
+                builder
+                    .ToString()
+                    .Trim();
+
+            if (!string.IsNullOrWhiteSpace(value))
+                output.Add(value);
+        }
+
+        builder.Clear();
+    }
+
+    private static string? TryExtractUrl(
+        string value)
+    {
+        int http =
+            value.IndexOf(
+                "http://",
+                StringComparison.OrdinalIgnoreCase);
+
+        int https =
+            value.IndexOf(
+                "https://",
+                StringComparison.OrdinalIgnoreCase);
+
+        int start =
+            http < 0
+                ? https
+                : https < 0
+                    ? http
+                    : Math.Min(
+                        http,
+                        https);
+
+        if (start < 0)
+            return null;
+
+        int end = start;
+
+        while (
+            end < value.Length &&
+            !char.IsWhiteSpace(
+                value[end]) &&
+            value[end] is not
+                ('"' or '\'' or '<' or '>'))
+        {
+            end++;
+        }
+
+        return value[start..end]
+            .TrimEnd(
+                '.',
+                ',',
+                ';',
+                ')',
+                ']');
+    }
+
+    private static string TruncateFragment(
+        string value,
+        int maximum)
+    {
+        return value.Length <= maximum
+            ? value
+            : value[..maximum] + "...";
+    }
+
+    private static async Task<bool> ReadPageAsync(
+        FileStream stream,
+        uint pageNumber,
+        byte[] buffer,
+        CancellationToken token)
+    {
+        if (pageNumber == 0)
+            return false;
+
+        long offset =
+            checked(
+                ((long)pageNumber - 1L) *
+                buffer.Length);
+
+        if (
+            offset < 0 ||
+            offset + buffer.Length >
+            stream.Length)
+            return false;
+
+        stream.Position = offset;
+
+        return await ReadExactlyAsync(
+                   stream,
+                   buffer,
+                   token) ==
+               buffer.Length;
+    }
+
+    private static async Task<int> ReadExactlyAsync(
+        Stream stream,
+        byte[] buffer,
+        CancellationToken token)
+    {
+        int offset = 0;
+
+        while (offset < buffer.Length)
+        {
+            int read =
+                await stream.ReadAsync(
+                    buffer.AsMemory(
+                        offset,
+                        buffer.Length -
+                        offset),
+                    token);
+
+            if (read == 0)
+                break;
+
+            offset += read;
+        }
+
+        return offset;
+    }
+
+    private static ushort ReadUInt16BigEndian(
+        byte[] buffer,
+        int offset)
+    {
+        return checked(
+            (ushort)(
+                (buffer[offset] << 8) |
+                buffer[offset + 1]));
+    }
+
+    private static uint ReadUInt32BigEndian(
+        byte[] buffer,
+        int offset)
+    {
+        return
+            ((uint)buffer[offset] << 24) |
+            ((uint)buffer[offset + 1] << 16) |
+            ((uint)buffer[offset + 2] << 8) |
+            buffer[offset + 3];
+    }
+
+    private sealed record ResidualRecoveryResult(
+        int PagesOrChunksScanned,
+        bool Partial);
 
     private static DateTimeOffset? ChromiumTime(
         long microseconds)

@@ -1,5 +1,39 @@
 # Changelog
 
+## 2.1.5
+- Added Sysware, Astral, Ech0, Predator, Weebware, Omniaim, Precision Cheats, Abyss, Redeye Cheats, 420Cheats, 5DollarCheats, Neverloose, HVHGod, and Phantom.
+- Neverloose is a separate canonical family from Neverlose.
+- Predator remains separate from Predator Systems; Phantom remains separate from Phantom Overlay.
+- Named browser visits and downloads now create red-highlighted report cards.
+- Added read-only recovery of named browser fragments from SQLite WAL, rollback-journal, and freelist pages.
+- Recovered browser fragments are explicitly marked as possible deleted/stale history with no reliable timestamp.
+- Added all-ready-fixed/removable-volume artifact sweep to Quick, Full, and Forensic scans.
+- Named-family paths are checked regardless of age; generic candidates use mode-specific date, item, and time limits.
+- Added `.url` files to the all-disk artifact sweep.
+- Preserved one-family/one-combined-finding consolidation.
+
+## 2.1.4
+- Added every cheat/family/source name supplied in the current user list.
+- Expanded the curated database from 45 entries to a larger family set.
+- Added Hexui, Melatonin, Valthrun, VisionCloud, Asphyxia, En1gma, ArtificialAiming, InvisionCheats, PerfectAim, EngineOwning, VRedux, Nightfall, SharkHack, DragonBurn, Voidware, Externity, Koryo, Fecurity, Novoline, Aurora, Ev0lve, DMA families, and other supplied names.
+- Added Midnight Lite, Airflow Reloaded, and Moonlight DMA as separate canonical families.
+- Added Elitepvpers Releases and UnknownCheats Releases as community release sources rather than confirmed single cheat products.
+- Replaced first-match alias resolution with best-match resolution.
+- Exact matches outrank version-prefix matches, and version-prefix matches outrank broad distinctive aliases.
+- Prevented `Midnight Lite` from being reduced to `Midnight`, `Airflow Reloaded` to `Airflow`, and `Moonlight DMA` to `Moonlight`.
+- Canonical family names no longer automatically perform unsafe broad substring matching.
+- Preserved Recent Items shortcut metadata scanning and one-cheat/one-finding consolidation.
+
+## 2.1.3
+- Added Undetek as a named CS2 cheat family, including versioned shortcut aliases such as `undetek-v10.4.0`.
+- Recent Items now reads `.lnk` shortcut name, target path, arguments, and working directory without opening the target.
+- Recent Items now reads `.url` Internet Shortcut URLs without opening them.
+- Expanded the curated CS2 family database with additional public families and safer aliases.
+- Added exact-alias and controlled version-prefix matching for ambiguous product names.
+- Version-prefix matching accepts loader/setup/version patterns while avoiding broad substring matching.
+- Added selected known distribution domains for browser correlation.
+- Preserved one-cheat/one-combined-finding deduplication from v2.1.1.
+
 ## 2.1.2
 - Fixed the GitHub Actions `Build DoubleG Scanner` installer failure.
 - Restored the standard scanner installer to the previously proven Inno Setup structure.

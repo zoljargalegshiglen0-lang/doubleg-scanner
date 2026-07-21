@@ -636,6 +636,7 @@ public sealed class ReportService
             finding.RuleId.StartsWith("DGS-NAMED-MODULE", StringComparison.OrdinalIgnoreCase) ||
             finding.RuleId.StartsWith("DGS-NAMED-PROCESS", StringComparison.OrdinalIgnoreCase) ||
             finding.RuleId.StartsWith("DGS-NAMED-DOWNLOAD", StringComparison.OrdinalIgnoreCase) ||
+            finding.RuleId.StartsWith("DGS-NAMED-BROWSER", StringComparison.OrdinalIgnoreCase) ||
             finding.RuleId.StartsWith("DGS-NAMED-RAW-DELETED", StringComparison.OrdinalIgnoreCase))
             return true;
 
