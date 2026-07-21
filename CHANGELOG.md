@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.1.2
+- Fixed the GitHub Actions `Build DoubleG Scanner` installer failure.
+- Restored the standard scanner installer to the previously proven Inno Setup structure.
+- Removed unsigned/missing kernel-driver packaging from the regular scanner installer.
+- Kernel driver source and build remain available through the separate `Build DoubleG Kernel Driver` workflow.
+- Cleared nullable warnings in `ReportService.cs`.
+- Replaced the obsolete certificate-loading API with `X509CertificateLoader`.
+- Preserved v2.1.1 cheat/kernel finding deduplication and v2.1.0 PDF layout.
+
 ## 2.1.1
 - Consolidated repeated detections for the same named cheat into one finding.
 - ExLoader `.exe`, `.zip`, USN, MFT, browser, and local-file traces now appear as one ExLoader result.

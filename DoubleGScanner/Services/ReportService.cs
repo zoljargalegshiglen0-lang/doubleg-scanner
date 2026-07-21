@@ -497,12 +497,15 @@ public sealed class ReportService
     private static void Meta(Table table, string name, string value)
     {
         Row row = table.AddRow();
-        row.Cells[0].Shading.Color = Color.Parse("#F8F2F0");
-        row.Cells[0].Format.Font.Bold = true;
-        row.Cells[0].AddParagraph(name);
-        row.Cells[1].AddParagraph(value);
-        foreach (Cell cell in row.Cells)
+        Cell nameCell = row.Cells[0]!;
+        Cell valueCell = row.Cells[1]!;
+        nameCell.Shading.Color = Color.Parse("#F8F2F0");
+        nameCell.Format.Font.Bold = true;
+        nameCell.AddParagraph(name);
+        valueCell.AddParagraph(value);
+        foreach (Cell? cell in row.Cells)
         {
+            if (cell is null) continue;
             cell.VerticalAlignment = VerticalAlignment.Center;
             cell.Format.LeftIndent = Unit.FromPoint(5);
             cell.Format.SpaceBefore = Unit.FromPoint(4);
@@ -521,14 +524,18 @@ public sealed class ReportService
 
     private static void Format(Table table, double padding, bool center)
     {
-        foreach (Row row in table.Rows)
-        foreach (Cell cell in row.Cells)
+        foreach (Row? row in table.Rows)
         {
-            cell.VerticalAlignment = VerticalAlignment.Center;
-            cell.Format.SpaceBefore = Unit.FromPoint(padding);
-            cell.Format.SpaceAfter = Unit.FromPoint(padding);
-            cell.Format.LeftIndent = Unit.FromPoint(3);
-            if (center) cell.Format.Alignment = ParagraphAlignment.Center;
+            if (row is null) continue;
+            foreach (Cell? cell in row.Cells)
+            {
+                if (cell is null) continue;
+                cell.VerticalAlignment = VerticalAlignment.Center;
+                cell.Format.SpaceBefore = Unit.FromPoint(padding);
+                cell.Format.SpaceAfter = Unit.FromPoint(padding);
+                cell.Format.LeftIndent = Unit.FromPoint(3);
+                if (center) cell.Format.Alignment = ParagraphAlignment.Center;
+            }
         }
     }
 

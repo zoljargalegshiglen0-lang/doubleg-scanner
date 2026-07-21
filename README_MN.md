@@ -1,4 +1,4 @@
-# DoubleG Scanner v2.1.1
+# DoubleG Scanner v2.1.2
 
 ## New Forensic Scan
 
@@ -99,3 +99,10 @@ user, DoubleG Scanner offers to restart through Windows UAC.
 - One named cheat is displayed once, regardless of how many collectors found it.
 - Repeated kernel-driver correlation results are summarized by rule.
 - Combined cards preserve evidence count, sources, and sample artifact paths.
+
+
+## v2.1.2 build fix
+
+- Standard scanner installer no longer tries to package a missing unsigned kernel driver.
+- Kernel driver remains a separate workflow/artifact.
+- Report nullable and certificate API warnings were cleaned up.

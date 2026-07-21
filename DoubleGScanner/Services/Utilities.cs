@@ -44,9 +44,8 @@ public static class SignatureVerifier
         string? publisher = null; bool signed = false;
         try
         {
-            using X509Certificate cert = X509Certificate.CreateFromSignedFile(filePath);
-            using var cert2 = new X509Certificate2(cert);
-            publisher = cert2.GetNameInfo(X509NameType.SimpleName, false);
+            using X509Certificate2 cert = X509CertificateLoader.LoadCertificateFromFile(filePath);
+            publisher = cert.GetNameInfo(X509NameType.SimpleName, false);
             signed = true;
         }
         catch { }
