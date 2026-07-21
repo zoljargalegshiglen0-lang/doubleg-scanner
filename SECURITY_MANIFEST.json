@@ -1,6 +1,6 @@
 {
   "product": "DoubleG Scanner",
-  "version": "2.1.8",
+  "version": "2.1.9",
   "network_upload": false,
   "telemetry": false,
   "background_service": false,
@@ -173,5 +173,19 @@
     "progress_updates_coalesced": true,
     "cancel_button_immediate_ui_feedback": true,
     "scan_scope_reduced": false
+  },
+  "forensic_completion_mode": {
+    "mft_time_cap": false,
+    "mft_record_cap": false,
+    "usn_time_cap": false,
+    "usn_record_cap": false,
+    "usn_full_retained_journal": true,
+    "all_disk_global_time_cap": false,
+    "all_disk_metadata_cap": false,
+    "all_disk_deep_candidate_cap": false,
+    "unallocated_scan": "Completed planned sampling, not full free-space recovery",
+    "defender_extended_timeouts": true,
+    "ui_activity_spinner": true,
+    "ui_elapsed_timer": true
   }
 }

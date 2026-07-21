@@ -659,35 +659,35 @@ public sealed class FileArtifactCollector : IScanCollector
         {
             ScanMode.Quick => 120_000,
             ScanMode.Full => 400_000,
-            _ => 900_000
+            _ => int.MaxValue
         };
 
         int deepInspectionLimit = context.Mode switch
         {
             ScanMode.Quick => 2_500,
             ScanMode.Full => 10_000,
-            _ => 25_000
+            _ => int.MaxValue
         };
 
         TimeSpan totalTimeLimit = context.Mode switch
         {
             ScanMode.Quick => TimeSpan.FromSeconds(75),
             ScanMode.Full => TimeSpan.FromMinutes(3),
-            _ => TimeSpan.FromMinutes(5)
+            _ => TimeSpan.MaxValue
         };
 
         TimeSpan priorityRootLimit = context.Mode switch
         {
             ScanMode.Quick => TimeSpan.FromSeconds(20),
             ScanMode.Full => TimeSpan.FromSeconds(40),
-            _ => TimeSpan.FromSeconds(60)
+            _ => TimeSpan.MaxValue
         };
 
         TimeSpan perFileTimeout = context.Mode switch
         {
             ScanMode.Quick => TimeSpan.FromSeconds(4),
             ScanMode.Full => TimeSpan.FromSeconds(8),
-            _ => TimeSpan.FromSeconds(12)
+            _ => TimeSpan.FromSeconds(30)
         };
 
         long maximumDeepFileSize = context.Mode switch
@@ -1249,7 +1249,9 @@ public sealed class FileArtifactCollector : IScanCollector
                 ? "The mode time/item limit was reached."
                 : timedOutFiles > 0
                     ? $"{timedOutFiles:N0} slow file(s) reached the per-file timeout."
-                    : "The bounded sweep completed.";
+                    : context.Mode == ScanMode.Forensic
+                        ? "The exhaustive metadata sweep completed across every attempted ready volume."
+                        : "The bounded sweep completed.";
 
         return new CollectorOutput
         {

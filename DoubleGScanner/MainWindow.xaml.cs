@@ -4,6 +4,8 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
+using System.Windows.Threading;
 using DoubleGScanner.Collectors;
 using DoubleGScanner.Models;
 using DoubleGScanner.Services;
@@ -17,6 +19,8 @@ public partial class MainWindow : Window
     private CancellationTokenSource? cancellation;
     private ReportBundle? lastReport;
     private bool navigationReady;
+    private readonly Stopwatch scanStopwatch = new();
+    private readonly DispatcherTimer elapsedTimer;
 
     public MainWindow()
     {
@@ -31,6 +35,12 @@ public partial class MainWindow : Window
         MainTabs.SelectedIndex = 0;
         navigationReady = true;
         NavOverviewButton.IsChecked = true;
+
+        elapsedTimer = new DispatcherTimer(
+            TimeSpan.FromSeconds(1),
+            DispatcherPriority.Background,
+            (_, _) => UpdateElapsedTime(),
+            Dispatcher);
     }
 
     private static string GetDisplayVersion()
@@ -182,6 +192,7 @@ public partial class MainWindow : Window
         cancellation = new CancellationTokenSource();
         SetScanning(true);
         ResetUi();
+        StartActivityIndicator();
 
         CancellationToken scanToken =
             cancellation.Token;
@@ -298,6 +309,7 @@ public partial class MainWindow : Window
         }
         finally
         {
+            StopActivityIndicator();
             SetScanning(false);
             cancellation?.Dispose();
             cancellation = null;
@@ -394,6 +406,52 @@ public partial class MainWindow : Window
             "Correlating independent evidence sources.";
         ScanProgress.Value = 0;
         ProgressText.Text = "0%";
+        ElapsedTimeText.Text = "00:00:00";
+        ElapsedCaptionText.Text = "ELAPSED";
+    }
+
+    private void StartActivityIndicator()
+    {
+        scanStopwatch.Restart();
+        UpdateElapsedTime();
+        elapsedTimer.Start();
+
+        var rotation = new DoubleAnimation
+        {
+            From = 0,
+            To = 360,
+            Duration = TimeSpan.FromSeconds(1.1),
+            RepeatBehavior = RepeatBehavior.Forever
+        };
+
+        ActivitySpinnerRotation.BeginAnimation(
+            RotateTransform.AngleProperty,
+            rotation,
+            HandoffBehavior.SnapshotAndReplace);
+    }
+
+    private void StopActivityIndicator()
+    {
+        elapsedTimer.Stop();
+        scanStopwatch.Stop();
+        UpdateElapsedTime();
+
+        ActivitySpinnerRotation.BeginAnimation(
+            RotateTransform.AngleProperty,
+            null);
+
+        ActivitySpinnerRotation.Angle = 0;
+        ElapsedCaptionText.Text = "TOTAL";
+    }
+
+    private void UpdateElapsedTime()
+    {
+        TimeSpan elapsed = scanStopwatch.Elapsed;
+
+        ElapsedTimeText.Text =
+            $"{(int)elapsed.TotalHours:00}:" +
+            $"{elapsed.Minutes:00}:" +
+            $"{elapsed.Seconds:00}";
     }
 
     private void SetScanning(bool scanning)

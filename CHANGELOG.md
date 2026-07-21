@@ -1,5 +1,18 @@
 # Changelog
 
+## 2.1.9
+- Added a continuously rotating scan activity ring independent of the percentage value.
+- Added an `HH:MM:SS` elapsed scan timer below the progress wheel.
+- Changed the elapsed label to `TOTAL` when the scan ends.
+- Forensic MFT enumeration no longer stops at the previous 350,000-record or 35-second cap.
+- Forensic USN scanning now reads the full currently retained journal without the previous time/record/evidence caps.
+- Forensic all-disk metadata/deep scanning no longer uses the Quick/Full global time or item caps.
+- Increased the Forensic per-file inspection timeout to 30 seconds.
+- Increased Forensic Microsoft Defender target windows.
+- Increased Forensic free-cluster sampling to a planned maximum of 1 GB per readable NTFS volume.
+- Completing the configured unallocated-space sample set is now reported as Completed instead of Partial merely because every free run was not sampled.
+- Genuine unavailable states remain honest: a missing signed kernel driver stays Unavailable, and CS2 module inspection can remain Partial when CS2 is not running.
+
 ## 2.1.8
 - Fixed the WPF window entering Windows `Not Responding` state during long metadata enumeration.
 - Moved the entire scan coordinator to a background thread.

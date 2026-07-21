@@ -445,37 +445,63 @@
                Margin="0,4,0,0"/>
              </StackPanel>
 
-             <Grid Grid.Column="1"
-              Width="96"
-              Height="96"
+             <StackPanel Grid.Column="1"
+              Width="108"
               HorizontalAlignment="Right"
               VerticalAlignment="Center">
-              <Ellipse Fill="#201719"
-               Stroke="#492C31"
-               StrokeThickness="1"/>
-              <Ellipse Width="74"
-               Height="74"
-               Stroke="#352427"
-               StrokeThickness="8"/>
-              <Ellipse Width="74"
-               Height="74"
-               Stroke="#D52C2D"
-               StrokeThickness="5"
-               StrokeDashArray="2,2.5"/>
+              <Grid Width="92"
+               Height="92"
+               HorizontalAlignment="Center">
+               <Ellipse Fill="#201719"
+                Stroke="#492C31"
+                StrokeThickness="1"/>
+               <Ellipse Width="72"
+                Height="72"
+                Stroke="#352427"
+                StrokeThickness="8"/>
+               <Ellipse x:Name="ActivitySpinnerRing"
+                Width="72"
+                Height="72"
+                Stroke="#D52C2D"
+                StrokeThickness="5"
+                StrokeDashArray="2,2.5"
+                RenderTransformOrigin="0.5,0.5">
+                <Ellipse.RenderTransform>
+                 <RotateTransform x:Name="ActivitySpinnerRotation"
+                  Angle="0"/>
+                </Ellipse.RenderTransform>
+               </Ellipse>
 
-              <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-               <TextBlock x:Name="ProgressText"
-                Text="0%"
-                Foreground="#FFF5F0"
-                FontSize="20"
-                FontWeight="Bold"
-                HorizontalAlignment="Center"/>
-               <TextBlock Text="PROGRESS"
-                Foreground="#9C8E8A"
-                FontSize="7.2"
-                HorizontalAlignment="Center"/>
-              </StackPanel>
-             </Grid>
+               <StackPanel HorizontalAlignment="Center"
+                VerticalAlignment="Center">
+                <TextBlock x:Name="ProgressText"
+                 Text="0%"
+                 Foreground="#FFF5F0"
+                 FontSize="20"
+                 FontWeight="Bold"
+                 HorizontalAlignment="Center"/>
+                <TextBlock Text="PROGRESS"
+                 Foreground="#9C8E8A"
+                 FontSize="7.2"
+                 HorizontalAlignment="Center"/>
+               </StackPanel>
+              </Grid>
+
+              <TextBlock x:Name="ElapsedTimeText"
+               Text="00:00:00"
+               Foreground="#FFF0E9"
+               FontSize="10"
+               FontWeight="SemiBold"
+               HorizontalAlignment="Center"
+               Margin="0,4,0,0"/>
+
+              <TextBlock x:Name="ElapsedCaptionText"
+               Text="ELAPSED"
+               Foreground="#8F817D"
+               FontSize="7.2"
+               HorizontalAlignment="Center"
+               Margin="0,1,0,0"/>
+             </StackPanel>
             </Grid>
 
             <StackPanel Grid.Row="2">

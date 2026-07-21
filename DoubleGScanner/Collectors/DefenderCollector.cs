@@ -53,12 +53,22 @@ public sealed class DefenderCollector : IScanCollector
             new(
                 Path.Combine(user, "Downloads"),
                 "Downloads",
-                TimeSpan.FromSeconds(90)),
+                context.Mode switch
+                {
+                    ScanMode.Quick => TimeSpan.FromSeconds(90),
+                    ScanMode.Full => TimeSpan.FromMinutes(3),
+                    _ => TimeSpan.FromMinutes(15)
+                }),
             new(
                 Environment.GetFolderPath(
                     Environment.SpecialFolder.DesktopDirectory),
                 "Desktop",
-                TimeSpan.FromSeconds(60))
+                context.Mode switch
+                {
+                    ScanMode.Quick => TimeSpan.FromSeconds(60),
+                    ScanMode.Full => TimeSpan.FromMinutes(2),
+                    _ => TimeSpan.FromMinutes(10)
+                })
         };
 
         if (context.Mode != ScanMode.Quick)
@@ -66,7 +76,9 @@ public sealed class DefenderCollector : IScanCollector
             targets.Add(new DefenderTarget(
                 Path.GetTempPath(),
                 "Temporary files",
-                TimeSpan.FromSeconds(60)));
+                context.Mode == ScanMode.Forensic
+                    ? TimeSpan.FromMinutes(10)
+                    : TimeSpan.FromMinutes(3)));
         }
 
         DefenderTarget[] availableTargets = targets

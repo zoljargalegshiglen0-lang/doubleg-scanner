@@ -1,4 +1,4 @@
-# DoubleG Scanner v2.1.8
+# DoubleG Scanner v2.1.9
 
 ## New Forensic Scan
 
@@ -152,3 +152,11 @@ user, DoubleG Scanner offers to restart through Windows UAC.
 - PDF/JSON report generation also runs in the background.
 - The window remains movable and Cancel remains responsive during disk enumeration.
 - Scan coverage and detection behavior are unchanged.
+
+
+## v2.1.9 forensic completion and activity timer
+
+- Rotating activity wheel and elapsed `HH:MM:SS` timer show that the scanner is still active.
+- Forensic MFT, USN, and all-disk scanning no longer stop at the previous global time/record caps.
+- Unallocated-space coverage means completion of the configured sampling plan, not a full byte-for-byte recovery.
+- Missing kernel driver and non-running CS2 remain honest Unavailable/Partial states.

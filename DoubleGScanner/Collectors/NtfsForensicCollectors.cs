@@ -323,6 +323,16 @@ public sealed class NtfsMftCollector : IScanCollector
         bool partial = false;
         bool available = false;
 
+        long maxBytesPerVolume =
+            context.Mode == ScanMode.Forensic
+                ? 1024L * 1024 * 1024
+                : MaxBytesPerVolume;
+
+        int maxCandidates =
+            context.Mode == ScanMode.Forensic
+                ? 1_000
+                : MaxCandidates;
+
         if (!SystemProfileCollector.IsAdministrator())
         {
             return Task.FromResult(new CollectorOutput
@@ -336,8 +346,13 @@ public sealed class NtfsMftCollector : IScanCollector
             });
         }
 
-        const int maxRecords = 350_000;
-        TimeSpan timeLimit = TimeSpan.FromSeconds(35);
+        int maxRecords = context.Mode == ScanMode.Forensic
+            ? int.MaxValue
+            : 350_000;
+
+        TimeSpan timeLimit = context.Mode == ScanMode.Forensic
+            ? TimeSpan.MaxValue
+            : TimeSpan.FromSeconds(35);
 
         foreach (DriveInfo drive in NtfsForensicNative.NtfsFixedDrives())
         {
@@ -461,7 +476,12 @@ public sealed class NtfsMftCollector : IScanCollector
                     break;
             }
 
-            foreach (NtfsForensicNative.MftCandidate candidate in candidates.Take(8_000))
+            IEnumerable<NtfsForensicNative.MftCandidate> retainedCandidates =
+                context.Mode == ScanMode.Forensic
+                    ? candidates
+                    : candidates.Take(8_000);
+
+            foreach (NtfsForensicNative.MftCandidate candidate in retainedCandidates)
             {
                 string path = NtfsForensicNative.BuildMftPath(
                     drive.RootDirectory.FullName,
@@ -549,11 +569,23 @@ public sealed class UsnJournalCollector : IScanCollector
                 });
         }
 
-        int maxRecords = 300_000;
-        int maxEvidence = 5_000;
-        TimeSpan timeLimit = TimeSpan.FromSeconds(35);
+        int maxRecords = context.Mode == ScanMode.Forensic
+            ? int.MaxValue
+            : 300_000;
+
+        int maxEvidence = context.Mode == ScanMode.Forensic
+            ? int.MaxValue
+            : 5_000;
+
+        TimeSpan timeLimit = context.Mode == ScanMode.Forensic
+            ? TimeSpan.MaxValue
+            : TimeSpan.FromSeconds(35);
+
         long recentWindow = 512L * 1024 * 1024;
-        DateTimeOffset cutoff = DateTimeOffset.Now.AddDays(-365);
+
+        DateTimeOffset cutoff = context.Mode == ScanMode.Forensic
+            ? DateTimeOffset.MinValue
+            : DateTimeOffset.Now.AddDays(-365);
 
         foreach (DriveInfo drive in
                  NtfsForensicNative.NtfsFixedDrives())
@@ -590,11 +622,14 @@ public sealed class UsnJournalCollector : IScanCollector
             available = true;
 
             long startingUsn =
-                Math.Max(
-                    journal.FirstUsn,
-                    journal.NextUsn - recentWindow);
+                context.Mode == ScanMode.Forensic
+                    ? journal.FirstUsn
+                    : Math.Max(
+                        journal.FirstUsn,
+                        journal.NextUsn - recentWindow);
 
             bool tailOnly =
+                context.Mode != ScanMode.Forensic &&
                 startingUsn > journal.FirstUsn;
 
             var input =
@@ -943,12 +978,12 @@ public sealed class UnallocatedSpaceCollector : IScanCollector
             if (runs.Count == 0)
                 continue;
 
-            int maxSamples = (int)Math.Max(1, MaxBytesPerVolume / SampleSize);
+            int maxSamples = (int)Math.Max(1, maxBytesPerVolume / SampleSize);
             int selectedSamples = Math.Min(maxSamples, runs.Count);
 
             for (int sampleIndex = 0;
                  sampleIndex < selectedSamples &&
-                 evidence.Count < MaxCandidates;
+                 evidence.Count < maxCandidates;
                  sampleIndex++)
             {
                 token.ThrowIfCancellationRequested();
@@ -1005,8 +1040,9 @@ public sealed class UnallocatedSpaceCollector : IScanCollector
                 });
             }
 
-            if (runs.Count > selectedSamples)
-                partial = true;
+            // This collector is explicitly a bounded signature sampler.
+            // Completing the planned sample set is a completed module, even
+            // though every free cluster is not read.
         }
 
         CoverageStatus status = !available
@@ -1021,7 +1057,7 @@ public sealed class UnallocatedSpaceCollector : IScanCollector
             Status = status,
             Summary = !available
                 ? "No readable NTFS volume was available for raw signature sampling."
-                : $"Read {bytesReadTotal / (1024d * 1024d):N1} MB from free clusters in {samplesRead:N0} read-only samples and retained {evidence.Count:N0} suspicious executable/archive fragments. No file was restored or saved.",
+                : $"Completed the planned read-only free-cluster sample set: {bytesReadTotal / (1024d * 1024d):N1} MB across {samplesRead:N0} sample(s), retaining {evidence.Count:N0} suspicious executable/archive fragment(s). This is sampling, not a full byte-for-byte free-space recovery, and no file was restored or saved.",
             Evidence = evidence,
             ItemsChecked = samplesRead,
             Duration = DateTime.UtcNow - started
