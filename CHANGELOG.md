@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.1.10
+- Fixed GitHub Actions compile errors in `NtfsForensicCollectors.cs`.
+- Moved `maxBytesPerVolume` and `maxCandidates` from `NtfsMftCollector` into `UnallocatedSpaceCollector`, where their constants and usages exist.
+- Resolved `CS0103` errors reported near lines 329, 334, 981, and 986.
+- Preserved the v2.1.9 rotating activity wheel, elapsed timer, Forensic completion behavior, browser recovery, all-disk scan, report layout, and cheat-family database.
+
 ## 2.1.9
 - Added a continuously rotating scan activity ring independent of the percentage value.
 - Added an `HH:MM:SS` elapsed scan timer below the progress wheel.

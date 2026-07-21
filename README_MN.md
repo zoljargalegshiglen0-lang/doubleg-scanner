@@ -1,4 +1,4 @@
-# DoubleG Scanner v2.1.9
+# DoubleG Scanner v2.1.10
 
 ## New Forensic Scan
 
@@ -160,3 +160,9 @@ user, DoubleG Scanner offers to restart through Windows UAC.
 - Forensic MFT, USN, and all-disk scanning no longer stop at the previous global time/record caps.
 - Unallocated-space coverage means completion of the configured sampling plan, not a full byte-for-byte recovery.
 - Missing kernel driver and non-running CS2 remain honest Unavailable/Partial states.
+
+
+## v2.1.10 NTFS scope build fix
+
+- Corrected two variables that were placed in the wrong collector method.
+- No scan module or detection behavior was removed.

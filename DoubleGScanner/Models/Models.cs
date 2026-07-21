@@ -38,7 +38,7 @@ public sealed class KnownVulnerableDriverEntry
 
 public sealed class RuleSet
 {
-    public string Version { get; set; } = "2.1.9";
+    public string Version { get; set; } = "2.1.10";
     public List<KnownCheatEntry> KnownCheats { get; set; } = new();
     public List<KnownCheatNameEntry> KnownCheatNames { get; set; } = new();
     public List<KnownVulnerableDriverEntry> KnownVulnerableDrivers { get; set; } = new();

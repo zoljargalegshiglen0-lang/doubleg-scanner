@@ -323,16 +323,6 @@ public sealed class NtfsMftCollector : IScanCollector
         bool partial = false;
         bool available = false;
 
-        long maxBytesPerVolume =
-            context.Mode == ScanMode.Forensic
-                ? 1024L * 1024 * 1024
-                : MaxBytesPerVolume;
-
-        int maxCandidates =
-            context.Mode == ScanMode.Forensic
-                ? 1_000
-                : MaxCandidates;
-
         if (!SystemProfileCollector.IsAdministrator())
         {
             return Task.FromResult(new CollectorOutput
@@ -925,6 +915,16 @@ public sealed class UnallocatedSpaceCollector : IScanCollector
         int samplesRead = 0;
         bool partial = false;
         bool available = false;
+
+        long maxBytesPerVolume =
+            context.Mode == ScanMode.Forensic
+                ? 1024L * 1024 * 1024
+                : MaxBytesPerVolume;
+
+        int maxCandidates =
+            context.Mode == ScanMode.Forensic
+                ? 1_000
+                : MaxCandidates;
 
         if (!SystemProfileCollector.IsAdministrator())
         {
