@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.1.6
+- Fixed GitHub Actions C# syntax errors in `ForensicCollectors.cs`.
+- Corrected two Windows path trimming character literals from invalid `TrimEnd('\')` source syntax to valid escaped backslash literals.
+- Preserved v2.1.5 browser residual recovery, all-disk scanning, family database, PDF report, and kernel integration behavior.
+
 ## 2.1.5
 - Added Sysware, Astral, Ech0, Predator, Weebware, Omniaim, Precision Cheats, Abyss, Redeye Cheats, 420Cheats, 5DollarCheats, Neverloose, HVHGod, and Phantom.
 - Neverloose is a separate canonical family from Neverlose.

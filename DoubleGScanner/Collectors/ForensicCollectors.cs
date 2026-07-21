@@ -706,9 +706,9 @@ public sealed class FileArtifactCollector : IScanCollector
 
             bool volumeRoot =
                 Path.GetPathRoot(root)
-                    ?.TrimEnd('\')
+                    ?.TrimEnd('\\')
                     .Equals(
-                        root.TrimEnd('\'),
+                        root.TrimEnd('\\'),
                         StringComparison.OrdinalIgnoreCase) ==
                 true;
 

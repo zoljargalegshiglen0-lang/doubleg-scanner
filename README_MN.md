@@ -1,4 +1,4 @@
-# DoubleG Scanner v2.1.5
+# DoubleG Scanner v2.1.6
 
 ## New Forensic Scan
 
@@ -130,3 +130,9 @@ user, DoubleG Scanner offers to restart through Windows UAC.
 - Named browser history/download matches are highlighted red in the PDF.
 - Samples SQLite WAL, rollback-journal, and freelist pages for possible deleted named browser traces.
 - Quick, Full, and Forensic scan all ready fixed/removable volumes with bounded read-only sweeps.
+
+
+## v2.1.6 build fix
+
+- Fixed invalid escaped backslash character literals in the all-disk root-path check.
+- No scan behavior was removed.
