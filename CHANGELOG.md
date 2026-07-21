@@ -1,5 +1,35 @@
 # Changelog
 
+## 2.1.1
+- Consolidated repeated detections for the same named cheat into one finding.
+- ExLoader `.exe`, `.zip`, USN, MFT, browser, and local-file traces now appear as one ExLoader result.
+- Consolidated repeated kernel findings into one summary per kernel rule.
+- `DGS-KERNEL-CORR-013` no longer creates one PDF card for every normal Windows driver.
+- Combined findings retain evidence count, sources, and up to eight artifact paths.
+- Applied deduplication in the detection engine, PDF report, JSON result, and UI finding count.
+- Old PDF files are unchanged; a new scan/report is required.
+
+## 2.1.0
+- Redesigned the PDF report layout for cleaner, easier manual review.
+- Added a dedicated **Cheat Detection Summary** section that highlights only primary detections in red.
+- Supporting browser, kernel, installer, and trace findings are now shown separately as neutral review items.
+- Added article-style sections for Browser History, Last Activity, Network/Data Usage, Local Files & Downloads, Kernel & Drivers, Deleted Traces, and Microsoft Defender.
+- Added DoubleG logo support and improved brand styling in the PDF.
+- Copied `Assets\DoubleGLogo.png` to output/publish so it can be rendered inside generated reports.
+
+## 2.0.0
+- Added the real `DoubleGKernel.sys` KMDF kernel-mode scanner component.
+- Kernel driver enumerates loaded operating-system image modules through `AuxKlibQueryModuleInformation`.
+- Added a versioned, bounded IOCTL protocol and C# kernel-driver client.
+- Kernel output deliberately excludes kernel base addresses.
+- No arbitrary kernel/physical/process memory read or write operations exist.
+- Control device access is restricted to SYSTEM and built-in Administrators.
+- Forensic Scan is now marked Incomplete when the signed kernel driver is unavailable.
+- Added WDK NuGet-based unsigned development build workflow.
+- Added signed-driver import, install, and uninstall scripts.
+- Public installer includes a kernel driver only when a valid signed binary is supplied.
+- Installer now uses administrator privileges and Program Files when packaging the signed driver.
+
 ## 1.11.0
 - Rebalanced the three scan tiers.
 - Quick Scan now uses the previous Full Scan scope.

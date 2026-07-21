@@ -1,0 +1,33 @@
+name: Build DoubleG Kernel Driver
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-kernel-driver:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: microsoft/setup-msbuild@v2
+
+      - name: Build unsigned KMDF driver
+        shell: powershell
+        run: |
+          Set-ExecutionPolicy -Scope Process Bypass
+          .\Scripts\Build-KernelDriver.ps1
+
+      - name: Upload unsigned development driver
+        uses: actions/upload-artifact@v6
+        with:
+          name: DoubleGKernel-unsigned-development
+          path: |
+            Release\KernelDriver\Unsigned\*
+
+      - name: Safety notice
+        shell: powershell
+        run: |
+          Write-Host "This artifact is intentionally unsigned."
+          Write-Host "Do not weaken Secure Boot or Windows protections to load it."
+          Write-Host "Use Microsoft Hardware Developer signing for production."

@@ -11,9 +11,9 @@ using Microsoft.Win32;
 namespace DoubleGScanner.Collectors;
 
 /// <summary>
-/// User-mode, read-only kernel and driver integrity inspection.
-/// This collector does not install a kernel driver, read arbitrary kernel memory,
-/// change driver state, or modify Code Integrity policy.
+/// Forensic kernel and driver integrity inspection backed by the read-only
+/// DoubleGKernel.sys KMDF driver. The driver exposes only bounded module
+/// enumeration and never exposes arbitrary memory access or kernel addresses.
 /// </summary>
 public sealed class KernelIntegrityCollector : IScanCollector
 {
@@ -122,16 +122,18 @@ public sealed class KernelIntegrityCollector : IScanCollector
             item.Kind == EvidenceKind.CodeIntegrity);
 
         string summary =
-            $"Collected kernel security posture, inspected {loadedDrivers:N0} loaded driver record(s), " +
-            $"and retained {integrityEvents:N0} relevant Code Integrity / driver-service event(s). " +
-            "The module is user-mode and read-only; no kernel driver was installed.";
+            loadedResult.KernelDriverActive
+                ? $"DoubleGKernel.sys performed kernel-mode module enumeration; inspected {loadedDrivers:N0} loaded driver record(s) and retained {integrityEvents:N0} relevant Code Integrity / driver-service event(s). No arbitrary memory or kernel addresses were exposed."
+                : $"Kernel-level enumeration was not completed: {loadedResult.StatusMessage} User-mode posture and event evidence may still be present.";
 
         return new CollectorOutput
         {
             Module = Name,
-            Status = partial
-                ? CoverageStatus.Partial
-                : CoverageStatus.Completed,
+            Status = !loadedResult.KernelDriverActive
+                ? CoverageStatus.Unavailable
+                : partial
+                    ? CoverageStatus.Partial
+                    : CoverageStatus.Completed,
             Summary = summary,
             Evidence = evidence,
             ItemsChecked = checkedItems,
@@ -232,94 +234,123 @@ public sealed class KernelIntegrityCollector : IScanCollector
         IProgress<ScanProgressUpdate>? progress,
         CancellationToken token)
     {
-        var evidence = new List<EvidenceRecord>();
-        bool partial = false;
+        var evidence =
+            new List<EvidenceRecord>();
 
-        IntPtr[] imageBases = new IntPtr[1024];
+        KernelDriverSnapshot snapshot =
+            await KernelDriverClient.ReadAsync(
+                token);
 
-        bool enumerated = EnumDeviceDrivers(
-            imageBases,
-            imageBases.Length * IntPtr.Size,
-            out int bytesNeeded);
-
-        if (!enumerated)
+        if (!snapshot.Available ||
+            snapshot.Version is null)
         {
+            evidence.Add(
+                new EvidenceRecord
+                {
+                    Kind =
+                        EvidenceKind.KernelSecurity,
+                    Source =
+                        "DoubleG kernel driver",
+                    Name =
+                        "Kernel driver unavailable",
+                    Detail =
+                        snapshot.Status,
+                    Metadata =
+                        new Dictionary<string, string>(
+                            StringComparer.OrdinalIgnoreCase)
+                        {
+                            ["RecordType"] =
+                                "KernelDriverSession",
+                            ["KernelDriverActive"] =
+                                "False",
+                            ["RequiredDriver"] =
+                                "DoubleGKernel.sys",
+                            ["CollectionMode"] =
+                                "Kernel driver unavailable",
+                            ["ArbitraryMemoryAccessExposed"] =
+                                "False",
+                            ["KernelAddressesExposed"] =
+                                "False"
+                        }
+                });
+
             return new LoadedDriverResult(
                 evidence,
                 0,
-                true);
+                true,
+                false,
+                snapshot.Status);
         }
 
-        if (bytesNeeded > imageBases.Length * IntPtr.Size)
-        {
-            imageBases =
-                new IntPtr[
-                    Math.Min(
-                        4096,
-                        Math.Max(
-                            1,
-                            bytesNeeded / IntPtr.Size))];
-
-            enumerated = EnumDeviceDrivers(
-                imageBases,
-                imageBases.Length * IntPtr.Size,
-                out bytesNeeded);
-
-            if (!enumerated)
+        evidence.Add(
+            new EvidenceRecord
             {
-                return new LoadedDriverResult(
-                    evidence,
-                    0,
-                    true);
-            }
-        }
+                Kind =
+                    EvidenceKind.KernelSecurity,
+                Source =
+                    "DoubleG kernel driver",
+                Name =
+                    $"DoubleGKernel.sys v{snapshot.Version.DisplayVersion}",
+                Detail =
+                    snapshot.Status,
+                Metadata =
+                    new Dictionary<string, string>(
+                        StringComparer.OrdinalIgnoreCase)
+                    {
+                        ["RecordType"] =
+                            "KernelDriverSession",
+                        ["KernelDriverActive"] =
+                            "True",
+                        ["ProtocolVersion"] =
+                            $"0x{snapshot.Version.ProtocolVersion:X8}",
+                        ["DriverVersion"] =
+                            snapshot.Version.DisplayVersion,
+                        ["Capabilities"] =
+                            $"0x{snapshot.Version.Capabilities:X8}",
+                        ["MaxRecordsPerCall"] =
+                            snapshot.Version.MaxRecordsPerCall.ToString(),
+                        ["CollectionMode"] =
+                            "DoubleGKernel.sys / AuxKlibQueryModuleInformation",
+                        ["ArbitraryMemoryAccessExposed"] =
+                            "False",
+                        ["KernelAddressesExposed"] =
+                            "False"
+                    }
+            });
 
-        int count = Math.Min(
-            imageBases.Length,
-            Math.Max(
-                0,
-                bytesNeeded / IntPtr.Size));
+        bool partial = false;
 
-        IntPtr[] validBases =
-            imageBases
-                .Take(count)
-                .Where(address =>
-                    address != IntPtr.Zero)
-                .Distinct()
-                .Take(700)
+        KernelModuleSnapshot[] modules =
+            snapshot.Modules
+                .Where(item =>
+                    !string.IsNullOrWhiteSpace(
+                        item.Path))
+                .DistinctBy(
+                    item =>
+                        item.Path,
+                    StringComparer.OrdinalIgnoreCase)
+                .Take(2_048)
                 .ToArray();
 
-        if (count > 0 &&
-            validBases.Length == 0)
-        {
-            partial = true;
-        }
-
-        var seen =
-            new HashSet<string>(
-                StringComparer.OrdinalIgnoreCase);
-
         for (int index = 0;
-             index < validBases.Length;
+             index < modules.Length;
              index++)
         {
             token.ThrowIfCancellationRequested();
 
-            IntPtr imageBase =
-                validBases[index];
-
-            string baseName =
-                GetDriverString(
-                    imageBase,
-                    GetDeviceDriverBaseNameW);
+            KernelModuleSnapshot module =
+                modules[index];
 
             string rawPath =
-                GetDriverString(
-                    imageBase,
-                    GetDeviceDriverFileNameW);
+                module.Path;
 
             string? resolvedPath =
-                ResolveKernelPath(rawPath);
+                ResolveKernelPath(
+                    rawPath);
+
+            string baseName =
+                Path.GetFileName(
+                    resolvedPath ?? rawPath);
 
             if ((string.IsNullOrWhiteSpace(resolvedPath) ||
                  !File.Exists(resolvedPath)) &&
@@ -331,17 +362,6 @@ public sealed class KernelIntegrityCollector : IScanCollector
                 resolvedPath =
                     registeredPath;
             }
-
-            string identity =
-                !string.IsNullOrWhiteSpace(resolvedPath)
-                    ? resolvedPath
-                    : !string.IsNullOrWhiteSpace(baseName)
-                        ? baseName
-                        : rawPath;
-
-            if (string.IsNullOrWhiteSpace(identity) ||
-                !seen.Add(identity))
-                continue;
 
             SignatureResult? signature = null;
             string? hash = null;
@@ -401,85 +421,96 @@ public sealed class KernelIntegrityCollector : IScanCollector
                 RuleMatcher.IsUserWritable(
                     resolvedPath);
 
-            evidence.Add(new EvidenceRecord
-            {
-                Kind = EvidenceKind.KernelDriver,
-                Source = "Kernel & driver integrity",
-                Name =
-                    !string.IsNullOrWhiteSpace(baseName)
-                        ? baseName
-                        : Path.GetFileName(
-                            resolvedPath ?? rawPath),
-                Path =
-                    resolvedPath ?? rawPath,
-                HashSha256 = hash,
-                Publisher = signature?.Publisher,
-                IsSignatureValid =
-                    signature?.IsValid,
-                Timestamp = timestamp,
-                Detail =
-                    signature is null
-                        ? "Loaded kernel driver path or signature metadata was unavailable."
-                        : signature.Status,
-                Metadata =
-                    new Dictionary<string, string>(
-                        StringComparer.OrdinalIgnoreCase)
-                    {
-                        ["RecordType"] =
-                            "LoadedKernelDriver",
-                        ["Loaded"] = "True",
-                        ["RawKernelPath"] =
-                            rawPath,
-                        ["ResolvedPath"] =
-                            resolvedPath ?? "",
-                        ["IsSystemDriverPath"] =
-                            systemPath.ToString(),
-                        ["IsUserWritablePath"] =
-                            userWritable.ToString(),
-                        ["FileSize"] =
-                            fileSize.ToString(),
-                        ["FilenameHeuristicMatch"] =
-                            (vulnerableName is not null)
-                                .ToString(),
-                        ["FilenameHeuristicName"] =
-                            vulnerableName?.Name ?? "",
-                        ["ExactVulnerableHashMatch"] =
-                            (vulnerableHash is not null)
-                                .ToString(),
-                        ["ExactVulnerableDriverName"] =
-                            vulnerableHash?.Name ?? "",
-                        ["SignatureStatus"] =
-                            signature?.Status ??
-                            "Unavailable",
-                        ["CollectionMode"] =
-                            "EnumDeviceDrivers / PSAPI"
-                    }
-            });
+            evidence.Add(
+                new EvidenceRecord
+                {
+                    Kind =
+                        EvidenceKind.KernelDriver,
+                    Source =
+                        "DoubleG kernel driver",
+                    Name =
+                        string.IsNullOrWhiteSpace(baseName)
+                            ? rawPath
+                            : baseName,
+                    Path =
+                        resolvedPath ?? rawPath,
+                    HashSha256 =
+                        hash,
+                    Publisher =
+                        signature?.Publisher,
+                    IsSignatureValid =
+                        signature?.IsValid,
+                    Timestamp =
+                        timestamp,
+                    Detail =
+                        signature is null
+                            ? "The kernel driver returned a loaded image path; file signature metadata was unavailable in user mode."
+                            : signature.Status,
+                    Metadata =
+                        new Dictionary<string, string>(
+                            StringComparer.OrdinalIgnoreCase)
+                        {
+                            ["RecordType"] =
+                                "LoadedKernelDriver",
+                            ["Loaded"] =
+                                "True",
+                            ["RawKernelPath"] =
+                                rawPath,
+                            ["ResolvedPath"] =
+                                resolvedPath ?? "",
+                            ["KernelReportedImageSize"] =
+                                module.ImageSize.ToString(),
+                            ["KernelReportedFlags"] =
+                                $"0x{module.Flags:X8}",
+                            ["IsSystemDriverPath"] =
+                                systemPath.ToString(),
+                            ["IsUserWritablePath"] =
+                                userWritable.ToString(),
+                            ["FileSize"] =
+                                fileSize.ToString(),
+                            ["FilenameHeuristicMatch"] =
+                                (vulnerableName is not null)
+                                    .ToString(),
+                            ["FilenameHeuristicName"] =
+                                vulnerableName?.Name ?? "",
+                            ["ExactVulnerableHashMatch"] =
+                                (vulnerableHash is not null)
+                                    .ToString(),
+                            ["ExactVulnerableDriverName"] =
+                                vulnerableHash?.Name ?? "",
+                            ["SignatureStatus"] =
+                                signature?.Status ??
+                                "Unavailable",
+                            ["CollectionMode"] =
+                                "DoubleGKernel.sys / AuxKlibQueryModuleInformation",
+                            ["KernelAddressExposed"] =
+                                "False"
+                        }
+                });
 
             if (index % 12 == 0 ||
-                index == validBases.Length - 1)
+                index == modules.Length - 1)
             {
-                progress?.Report(new ScanProgressUpdate
-                {
-                    Percent =
-                        context.Mode == ScanMode.Quick
-                            ? 18
-                            : 16,
-                    Module =
-                        "Kernel & driver integrity",
-                    Message =
-                        $"Validating loaded driver {index + 1}/{validBases.Length}: " +
-                        $"{baseName}",
-                    ItemsChecked =
-                        evidence.Count
-                });
+                progress?.Report(
+                    new ScanProgressUpdate
+                    {
+                        Percent = 16,
+                        Module =
+                            "Kernel & driver integrity",
+                        Message =
+                            $"Kernel driver validated module {index + 1}/{modules.Length}: {baseName}",
+                        ItemsChecked =
+                            evidence.Count
+                    });
             }
         }
 
         return new LoadedDriverResult(
             evidence,
-            validBases.Length,
-            partial);
+            modules.Length,
+            partial,
+            true,
+            snapshot.Status);
     }
 
     private static async Task<DeviceGuardSnapshot>
@@ -1131,25 +1162,6 @@ public sealed class KernelIntegrityCollector : IScanCollector
         return result;
     }
 
-    private static string GetDriverString(
-        IntPtr imageBase,
-        DriverStringFunction function)
-    {
-        var buffer =
-            new StringBuilder(
-                2048);
-
-        uint length =
-            function(
-                imageBase,
-                buffer,
-                buffer.Capacity);
-
-        return length == 0
-            ? ""
-            : buffer.ToString();
-    }
-
     private static string? ResolveKernelPath(
         string rawPath)
     {
@@ -1607,31 +1619,6 @@ public sealed class KernelIntegrityCollector : IScanCollector
     private const uint SePrivilegeEnabled =
         0x00000002;
 
-    [DllImport(
-        "psapi.dll",
-        SetLastError = true)]
-    private static extern bool EnumDeviceDrivers(
-        [Out] IntPtr[] imageBase,
-        int size,
-        out int bytesNeeded);
-
-    [DllImport(
-        "psapi.dll",
-        CharSet = CharSet.Unicode,
-        SetLastError = true)]
-    private static extern uint GetDeviceDriverBaseNameW(
-        IntPtr imageBase,
-        StringBuilder baseName,
-        int size);
-
-    [DllImport(
-        "psapi.dll",
-        CharSet = CharSet.Unicode,
-        SetLastError = true)]
-    private static extern uint GetDeviceDriverFileNameW(
-        IntPtr imageBase,
-        StringBuilder fileName,
-        int size);
 
     [DllImport(
         "kernel32.dll",
@@ -1676,10 +1663,6 @@ public sealed class KernelIntegrityCollector : IScanCollector
     private static extern bool CloseHandle(
         IntPtr handle);
 
-    private delegate uint DriverStringFunction(
-        IntPtr imageBase,
-        StringBuilder text,
-        int size);
 
     [StructLayout(
         LayoutKind.Sequential)]
@@ -1708,7 +1691,9 @@ public sealed class KernelIntegrityCollector : IScanCollector
     private sealed record LoadedDriverResult(
         IReadOnlyList<EvidenceRecord> Evidence,
         int ItemsChecked,
-        bool Partial);
+        bool Partial,
+        bool KernelDriverActive,
+        string StatusMessage);
 
     private sealed record DeviceGuardSnapshot(
         bool Available,

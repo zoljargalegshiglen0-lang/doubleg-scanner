@@ -27,9 +27,7 @@ public static class DetectionEngine
 
         AddCorrelation(evidence, findings, rules);
 
-        return findings
-            .GroupBy(x => $"{x.RuleId}|{x.Path}|{x.DetectedCheatName}|{x.Timestamp:O}", StringComparer.OrdinalIgnoreCase)
-            .Select(group => group.OrderByDescending(x => x.Score).First())
+        return ConsolidateFindings(findings)
             .OrderByDescending(x => x.Score)
             .ThenByDescending(x => x.Timestamp)
             .ToArray();
@@ -1046,6 +1044,232 @@ public static class DetectionEngine
                 file, "Browser + local-file correlation",
                 strong ? "Supporting static indicators" : "Generic executable/archive payload"));
         }
+    }
+
+    private static IReadOnlyList<ScanFinding> ConsolidateFindings(
+        IReadOnlyList<ScanFinding> findings)
+    {
+        var output = new List<ScanFinding>();
+
+        // One named cheat/artifact family is reported once, even when the
+        // browser, USN, MFT, archive and local-file collectors all saw it.
+        foreach (IGrouping<string, ScanFinding> group in findings
+                     .Where(item =>
+                         !string.IsNullOrWhiteSpace(
+                             item.DetectedCheatName))
+                     .GroupBy(
+                         item => NormalizeDetectionName(
+                             item.DetectedCheatName!),
+                         StringComparer.OrdinalIgnoreCase))
+        {
+            ScanFinding strongest = group
+                .OrderByDescending(item =>
+                    SeverityRank(item.Severity))
+                .ThenByDescending(item =>
+                    item.Score)
+                .ThenByDescending(item =>
+                    item.Timestamp)
+                .First();
+
+            output.Add(
+                MergeFindingGroup(
+                    strongest,
+                    group.ToArray(),
+                    $"Named evidence records: {group.Count():N0}"));
+        }
+
+        // Kernel findings often repeat once per loaded Windows driver.
+        // Keep one summary per kernel rule instead of dozens of identical cards.
+        foreach (IGrouping<string, ScanFinding> group in findings
+                     .Where(item =>
+                         string.IsNullOrWhiteSpace(
+                             item.DetectedCheatName) &&
+                         item.RuleId.StartsWith(
+                             "DGS-KERNEL-",
+                             StringComparison.OrdinalIgnoreCase))
+                     .GroupBy(
+                         item => item.RuleId,
+                         StringComparer.OrdinalIgnoreCase))
+        {
+            ScanFinding strongest = group
+                .OrderByDescending(item =>
+                    SeverityRank(item.Severity))
+                .ThenByDescending(item =>
+                    item.Score)
+                .ThenByDescending(item =>
+                    item.Timestamp)
+                .First();
+
+            output.Add(
+                MergeFindingGroup(
+                    strongest,
+                    group.ToArray(),
+                    $"Kernel records combined: {group.Count():N0}"));
+        }
+
+        // Preserve unrelated findings, while removing exact duplicates.
+        output.AddRange(
+            findings
+                .Where(item =>
+                    string.IsNullOrWhiteSpace(
+                        item.DetectedCheatName) &&
+                    !item.RuleId.StartsWith(
+                        "DGS-KERNEL-",
+                        StringComparison.OrdinalIgnoreCase))
+                .GroupBy(
+                    item =>
+                        $"{item.RuleId}|{Normalize(item.Path ?? item.Title)}",
+                    StringComparer.OrdinalIgnoreCase)
+                .Select(group =>
+                    group
+                        .OrderByDescending(item =>
+                            SeverityRank(item.Severity))
+                        .ThenByDescending(item =>
+                            item.Score)
+                        .ThenByDescending(item =>
+                            item.Timestamp)
+                        .First()));
+
+        return output;
+    }
+
+    private static ScanFinding MergeFindingGroup(
+        ScanFinding strongest,
+        IReadOnlyList<ScanFinding> group,
+        string countReason)
+    {
+        string[] paths = group
+            .Select(item => item.Path)
+            .Where(path =>
+                !string.IsNullOrWhiteSpace(path))
+            .Cast<string>()
+            .Distinct(
+                StringComparer.OrdinalIgnoreCase)
+            .Take(8)
+            .ToArray();
+
+        string[] sources = group
+            .Select(item => item.EvidenceSource)
+            .Where(source =>
+                !string.IsNullOrWhiteSpace(source))
+            .Distinct(
+                StringComparer.OrdinalIgnoreCase)
+            .Take(8)
+            .ToArray();
+
+        string[] methods = group
+            .Select(item => item.DetectionMethod)
+            .Where(method =>
+                !string.IsNullOrWhiteSpace(method))
+            .Cast<string>()
+            .Distinct(
+                StringComparer.OrdinalIgnoreCase)
+            .Take(6)
+            .ToArray();
+
+        string[] combinedReasons = group
+            .SelectMany(item =>
+                item.Reasons)
+            .Where(reason =>
+                !string.IsNullOrWhiteSpace(reason))
+            .Distinct(
+                StringComparer.OrdinalIgnoreCase)
+            .Take(12)
+            .Concat(
+                new[]
+                {
+                    countReason,
+                    sources.Length == 0
+                        ? ""
+                        : $"Sources: {string.Join(", ", sources)}",
+                    paths.Length == 0
+                        ? ""
+                        : $"Artifacts: {string.Join("; ", paths)}"
+                })
+            .Where(reason =>
+                !string.IsNullOrWhiteSpace(reason))
+            .ToArray();
+
+        return new ScanFinding
+        {
+            RuleId = strongest.RuleId,
+            Severity = group
+                .OrderByDescending(item =>
+                    SeverityRank(item.Severity))
+                .Select(item =>
+                    item.Severity)
+                .First(),
+            Score = group.Max(item =>
+                item.Score),
+            Title = strongest.Title,
+            Summary = group.Count == 1
+                ? strongest.Summary
+                : $"{strongest.Summary} {group.Count:N0} related evidence records were combined into this single finding.",
+            EvidenceSource = sources.Length == 0
+                ? strongest.EvidenceSource
+                : string.Join(
+                    ", ",
+                    sources),
+            Path = strongest.Path ??
+                   paths.FirstOrDefault(),
+            HashSha256 = strongest.HashSha256 ??
+                         group
+                             .Select(item =>
+                                 item.HashSha256)
+                             .FirstOrDefault(hash =>
+                                 !string.IsNullOrWhiteSpace(hash)),
+            Timestamp = group
+                .Where(item =>
+                    item.Timestamp is not null)
+                .OrderByDescending(item =>
+                    item.Timestamp)
+                .Select(item =>
+                    item.Timestamp)
+                .FirstOrDefault(),
+            DetectedCheatName =
+                strongest.DetectedCheatName,
+            CheatFamily =
+                strongest.CheatFamily ??
+                group
+                    .Select(item =>
+                        item.CheatFamily)
+                    .FirstOrDefault(value =>
+                        !string.IsNullOrWhiteSpace(value)),
+            DetectionMethod = methods.Length switch
+            {
+                0 => strongest.DetectionMethod,
+                1 => methods[0],
+                _ => string.Join(
+                    "; ",
+                    methods)
+            },
+            Reasons = combinedReasons
+        };
+    }
+
+    private static int SeverityRank(
+        FindingSeverity severity) =>
+        severity switch
+        {
+            FindingSeverity.Critical => 4,
+            FindingSeverity.High => 3,
+            FindingSeverity.Warning => 2,
+            _ => 1
+        };
+
+    private static string NormalizeDetectionName(
+        string value)
+    {
+        string normalized =
+            new string(
+                value
+                    .ToLowerInvariant()
+                    .Where(char.IsLetterOrDigit)
+                    .ToArray());
+
+        return string.IsNullOrWhiteSpace(normalized)
+            ? value.Trim().ToLowerInvariant()
+            : normalized;
     }
 
     private static ScanFinding Named(

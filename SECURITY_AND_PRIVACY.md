@@ -29,3 +29,11 @@ DoubleG Scanner requires explicit local consent. It is designed as a transparent
 - Hidden/background monitoring
 
 Temporary browser database copies are created only in the scanner's own temporary folder and removed when the scan session ends. Reports are written only to `Documents\DoubleG Scanner\Reports`.
+
+
+## Kernel-mode component (v2.0.0)
+
+Forensic Scan can use `DoubleGKernel.sys`, a signed KMDF demand-start driver.
+The driver returns only loaded module paths and image sizes. It does not expose
+kernel addresses, arbitrary memory, physical memory, or process memory. Its
+control device is restricted to SYSTEM and built-in Administrators.

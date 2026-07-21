@@ -1,6 +1,6 @@
 {
   "product": "DoubleG Scanner",
-  "version": "1.11.0",
+  "version": "2.0.0",
   "network_upload": false,
   "telemetry": false,
   "background_service": false,
@@ -100,5 +100,24 @@
       "requires_administrator": true,
       "kernel_driver_integrity": true
     }
+  },
+  "real_kernel_driver": {
+    "name": "DoubleGKernel.sys",
+    "framework": "KMDF non-PnP control driver",
+    "protocol_version": "0x00020000",
+    "forensic_only": true,
+    "requires_administrator": true,
+    "requires_trusted_windows_driver_signature": true,
+    "kernel_module_enumeration": "AuxKlibQueryModuleInformation",
+    "kernel_addresses_returned_to_user_mode": false,
+    "arbitrary_kernel_memory_read": false,
+    "arbitrary_kernel_memory_write": false,
+    "physical_memory_access": false,
+    "process_memory_access": false,
+    "hooks_or_patching": false,
+    "ioctl_transfer_method": "METHOD_BUFFERED",
+    "ioctl_access": "FILE_READ_DATA",
+    "device_acl": "SYSTEM full; built-in Administrators read",
+    "unsigned_ci_artifact_in_public_installer": false
   }
 }

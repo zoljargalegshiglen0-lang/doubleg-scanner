@@ -1,4 +1,4 @@
-# DoubleG Scanner v1.11.0
+# DoubleG Scanner v2.1.1
 
 ## New Forensic Scan
 
@@ -74,3 +74,28 @@ user, DoubleG Scanner offers to restart through Windows UAC.
 - Full = previous Forensic Scan.
 - Forensic = Full disk forensics + Kernel & Driver Integrity.
 - Kernel integrity now runs only in Forensic mode.
+
+
+## v2.0.0 real kernel-mode scanner
+
+- Added `DoubleGKernel.sys`, a read-only KMDF control driver.
+- Kernel-mode loaded-module enumeration uses `AuxKlibQueryModuleInformation`.
+- Forensic Scan is Incomplete when the signed driver is unavailable.
+- Kernel addresses and arbitrary memory operations are not exposed.
+- CI driver artifacts are unsigned development builds and are not silently shipped.
+
+
+## v2.1.0 report polish
+
+- PDF report now separates **Cheat Detection Summary** from neutral supporting review items.
+- Only the main detected cheat cards are highlighted in red.
+- Browser history, last activity, network/data usage, local files, kernel & drivers, deleted traces, and Defender results each get their own article section.
+- Added DoubleG logo and stronger brand color styling to the PDF.
+- Non-primary review items use neutral wording so generic installers and technical traces are easier to interpret.
+
+
+## v2.1.1 finding deduplication
+
+- One named cheat is displayed once, regardless of how many collectors found it.
+- Repeated kernel-driver correlation results are summarized by rule.
+- Combined cards preserve evidence count, sources, and sample artifact paths.

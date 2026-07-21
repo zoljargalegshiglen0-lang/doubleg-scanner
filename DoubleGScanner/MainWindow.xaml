@@ -337,7 +337,7 @@
                 Foreground="#FFF4EF"
                 FontWeight="SemiBold"
                 FontSize="10.5"/>
-               <TextBlock Text="Disk forensics plus kernel driver integrity"
+               <TextBlock Text="Disk forensics plus signed kernel-mode driver"
                 Foreground="#A39591"
                 FontSize="8.5"/>
               </StackPanel>
