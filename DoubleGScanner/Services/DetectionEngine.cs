@@ -22,7 +22,22 @@ public static class DetectionEngine
                 item.Metadata.GetValueOrDefault("WorkingDirectory"),
                 item.Metadata.GetValueOrDefault("InternetUrl"),
                 item.Metadata.GetValueOrDefault("ArchiveIndicators"),
-                item.Metadata.GetValueOrDefault("StaticIndicators"));
+                item.Metadata.GetValueOrDefault("StaticIndicators"),
+                item.Metadata.GetValueOrDefault("AccessRights"),
+                item.Metadata.GetValueOrDefault("GrantedAccessHex"),
+                item.Metadata.GetValueOrDefault("WindowTitle"),
+                item.Metadata.GetValueOrDefault("WindowClass"),
+                item.Metadata.GetValueOrDefault("TaskPath"),
+                item.Metadata.GetValueOrDefault("TaskCommand"),
+                item.Metadata.GetValueOrDefault("ServiceCommand"),
+                item.Metadata.GetValueOrDefault("ServiceDll"),
+                item.Metadata.GetValueOrDefault("HardwareIds"),
+                item.Metadata.GetValueOrDefault("CompatibleIds"),
+                item.Metadata.GetValueOrDefault("DmaAlias"),
+                item.Metadata.GetValueOrDefault("FpgaAlias"),
+                item.Metadata.GetValueOrDefault("MappedPath"),
+                item.Metadata.GetValueOrDefault("Protection"),
+                item.Metadata.GetValueOrDefault("MemoryType"));
 
             KnownCheatNameEntry? namedCheat = RuleMatcher.FindKnownCheatName(combined, rules);
             if (namedCheat is not null)
@@ -716,6 +731,194 @@ public static class DetectionEngine
                 "A running executable matched high-risk terms and lacked a valid signature.",
                 item, "Running process", "High-risk term", "Unsigned user-writable executable"));
 
+        if (item.Kind == EvidenceKind.ProcessHandle)
+        {
+            bool dangerous = MetaBool(item, "DangerousWriteOrInjectionAccess");
+            bool vmRead = MetaBool(item, "HasVmRead");
+            bool unsignedOrUnknown = item.IsSignatureValid != true;
+
+            if (dangerous && userWritable && unsignedOrUnknown && !trusted)
+            {
+                findings.Add(F(
+                    "DGS-HANDLE-026",
+                    FindingSeverity.Critical,
+                    94,
+                    "Untrusted process has injection-capable access to CS2",
+                    "A process from a user-writable location holds a live CS2 handle containing memory-write, memory-operation, or remote-thread style rights.",
+                    item,
+                    item.Metadata.GetValueOrDefault("AccessRights") ?? "Dangerous process rights",
+                    "User-writable executable",
+                    "Publisher/signature not trusted"));
+            }
+            else if (dangerous && !trusted)
+            {
+                findings.Add(F(
+                    "DGS-HANDLE-027",
+                    FindingSeverity.High,
+                    72,
+                    "Process has injection-capable access to CS2",
+                    "A non-trusted process currently holds a CS2 handle with rights that can support memory modification or thread injection. Legitimate overlays and security tools can also request some of these rights.",
+                    item,
+                    item.Metadata.GetValueOrDefault("AccessRights") ?? "Dangerous process rights",
+                    "Live handle relationship",
+                    "Manual verification required"));
+            }
+            else if (vmRead && unsignedOrUnknown && !trusted)
+            {
+                findings.Add(F(
+                    "DGS-HANDLE-028",
+                    FindingSeverity.Warning,
+                    30,
+                    "Unsigned process can read CS2 memory",
+                    "A non-trusted process holds a live CS2 handle with VM_READ access. Read access alone is supporting evidence and may be legitimate.",
+                    item,
+                    item.Metadata.GetValueOrDefault("AccessRights") ?? "PROCESS_VM_READ",
+                    "Manual verification required"));
+            }
+        }
+
+        if (item.Kind == EvidenceKind.Overlay)
+        {
+            bool strongOverlay = MetaBool(item, "StrongOverlayPattern");
+            if (strongOverlay && userWritable && item.IsSignatureValid != true && !trusted)
+            {
+                findings.Add(F(
+                    "DGS-OVERLAY-029",
+                    FindingSeverity.High,
+                    70,
+                    "Untrusted overlay-style window overlaps CS2",
+                    "A layered/click-through/topmost style window substantially overlaps CS2 and belongs to an unsigned or untrusted executable in a user-writable location.",
+                    item,
+                    item.Metadata.GetValueOrDefault("WindowTitle") ?? "Overlay window",
+                    item.Metadata.GetValueOrDefault("WindowClass") ?? "Unknown window class",
+                    "Overlay pattern is not conclusive by itself"));
+            }
+            else if (strongOverlay && !trusted)
+            {
+                findings.Add(F(
+                    "DGS-OVERLAY-030",
+                    FindingSeverity.Warning,
+                    34,
+                    "Overlay-style window requires review",
+                    "A window with overlay-like properties substantially overlaps CS2. Steam, Discord, capture tools, GPU utilities, and accessibility software can produce similar windows.",
+                    item,
+                    item.Metadata.GetValueOrDefault("WindowTitle") ?? "Overlay window",
+                    "Manual verification required"));
+            }
+        }
+
+        if (item.Kind == EvidenceKind.Persistence)
+        {
+            bool userWritableTarget = MetaBool(item, "UserWritableTarget") || userWritable;
+            bool autoOrEnabled = MetaBool(item, "AutomaticStart") || MetaBool(item, "Enabled");
+            string recordType = item.Metadata.GetValueOrDefault("RecordType") ?? "Persistence";
+            bool unsignedOrUnknown = item.IsSignatureValid != true;
+
+            if (autoOrEnabled && userWritableTarget && unsignedOrUnknown && (high || RuleMatcher.FindKnownCheatName(combined, rules) is not null))
+            {
+                findings.Add(F(
+                    "DGS-PERSIST-031",
+                    FindingSeverity.Critical,
+                    82,
+                    "Suspicious automatic persistence target",
+                    "An enabled scheduled task or automatic service launches an unsigned/untrusted executable from a user-writable path and also matches high-risk or named cheat metadata.",
+                    item,
+                    recordType,
+                    "Automatic or enabled persistence",
+                    "User-writable target"));
+            }
+            else if (autoOrEnabled && userWritableTarget && unsignedOrUnknown)
+            {
+                findings.Add(F(
+                    "DGS-PERSIST-032",
+                    FindingSeverity.Warning,
+                    36,
+                    "Unsigned user-writable persistence target",
+                    "An enabled scheduled task or automatic Windows service launches an unsigned or unverified executable from a user-writable directory.",
+                    item,
+                    recordType,
+                    "Persistence alone is not cheat proof"));
+            }
+        }
+
+        if (item.Kind == EvidenceKind.MemoryRegion)
+        {
+            bool privateExecutable = MetaBool(item, "ExecutablePrivateMemory");
+            int threadStartCount = MetaInt(item, "ThreadStartCount");
+            long regionSize = MetaLong(item, "RegionSize");
+            bool mappedWithoutPath =
+                string.Equals(item.Metadata.GetValueOrDefault("RecordType"), "MappedExecutableRegion", StringComparison.OrdinalIgnoreCase) &&
+                string.IsNullOrWhiteSpace(item.Metadata.GetValueOrDefault("MappedPath"));
+
+            if (privateExecutable && threadStartCount > 0)
+            {
+                findings.Add(F(
+                    "DGS-MEMORY-033",
+                    FindingSeverity.Critical,
+                    96,
+                    "CS2 thread starts inside private executable memory",
+                    "At least one CS2 thread start address falls inside an executable MEM_PRIVATE region that is not part of a normal loaded image module. The scanner did not read region contents.",
+                    item,
+                    $"Thread starts in region: {threadStartCount}",
+                    item.Metadata.GetValueOrDefault("Protection") ?? "Executable protection",
+                    "Manual-map/injection-style memory anomaly"));
+            }
+            else if (privateExecutable && regionSize >= 65536)
+            {
+                findings.Add(F(
+                    "DGS-MEMORY-034",
+                    FindingSeverity.High,
+                    62,
+                    "Large private executable region inside CS2",
+                    "CS2 contains a committed executable MEM_PRIVATE region outside normal image modules. JIT, security, capture, and compatibility components can sometimes create legitimate regions.",
+                    item,
+                    $"Region size: {regionSize:N0} bytes",
+                    item.Metadata.GetValueOrDefault("Protection") ?? "Executable protection",
+                    "Manual verification required"));
+            }
+            else if (mappedWithoutPath)
+            {
+                findings.Add(F(
+                    "DGS-MEMORY-035",
+                    FindingSeverity.Warning,
+                    40,
+                    "Executable mapped region has no resolved image path",
+                    "An executable mapped region inside CS2 could not be resolved to a normal loaded image path.",
+                    item,
+                    "Memory-map anomaly",
+                    "Manual verification required"));
+            }
+        }
+
+        if (item.Kind == EvidenceKind.DmaDevice)
+        {
+            if (MetaBool(item, "DmaAliasMatch"))
+            {
+                findings.Add(F(
+                    "DGS-DMA-036",
+                    FindingSeverity.Warning,
+                    38,
+                    "DMA-tooling/device alias found in PnP metadata",
+                    "PCI/USB device metadata contains a distinctive alias associated with DMA tooling or commercial DMA hardware. Hardware IDs and names can be spoofed, and this finding is not proof without independent software or activity evidence.",
+                    item,
+                    item.Metadata.GetValueOrDefault("DmaAlias") ?? "DMA alias",
+                    "Hardware metadata only",
+                    "Correlation required"));
+            }
+            else if (MetaBool(item, "FpgaReviewMatch"))
+            {
+                findings.Add(F(
+                    "DGS-DMA-037",
+                    FindingSeverity.Information,
+                    0,
+                    "FPGA-capable device present",
+                    "PnP metadata contains an FPGA-related alias. FPGA devices have many legitimate uses and are listed for review only.",
+                    item,
+                    item.Metadata.GetValueOrDefault("FpgaAlias") ?? "FPGA alias",
+                    "Not cheat evidence"));
+            }
+        }
+
         if (item.Kind == EvidenceKind.Browser)
         {
             if (RuleMatcher.IsKnownDomain(item.Url, rules))
@@ -886,6 +1089,95 @@ public static class DetectionEngine
         List<ScanFinding> findings,
         RuleSet rules)
     {
+        var dangerousHandles = evidence
+            .Where(item => item.Kind == EvidenceKind.ProcessHandle && MetaBool(item, "DangerousWriteOrInjectionAccess"))
+            .ToArray();
+
+        var strongOverlays = evidence
+            .Where(item => item.Kind == EvidenceKind.Overlay && MetaBool(item, "StrongOverlayPattern"))
+            .ToArray();
+
+        foreach (EvidenceRecord handle in dangerousHandles)
+        {
+            EvidenceRecord? overlay = strongOverlays.FirstOrDefault(item => item.ProcessId == handle.ProcessId);
+            if (overlay is null) continue;
+
+            bool userWritable = RuleMatcher.IsUserWritable(handle.Path) || RuleMatcher.IsUserWritable(overlay.Path);
+            bool untrusted = !RuleMatcher.IsTrustedPublisher(handle.Publisher ?? overlay.Publisher, rules);
+            findings.Add(F(
+                "DGS-CORR-HANDLE-OVERLAY-038",
+                userWritable && untrusted ? FindingSeverity.Critical : FindingSeverity.High,
+                userWritable && untrusted ? 97 : 78,
+                "Same process overlays CS2 and holds injection-capable CS2 access",
+                "One process independently matched both a live CS2 handle with memory-modification/thread rights and a strong overlay-style window relationship.",
+                handle,
+                $"Process ID: {handle.ProcessId}",
+                handle.Metadata.GetValueOrDefault("AccessRights") ?? "Dangerous process rights",
+                overlay.Metadata.GetValueOrDefault("WindowTitle") ?? "Overlay window"));
+        }
+
+        var privateThreadRegions = evidence
+            .Where(item => item.Kind == EvidenceKind.MemoryRegion && MetaBool(item, "ExecutablePrivateMemory") && MetaInt(item, "ThreadStartCount") > 0)
+            .ToArray();
+
+        if (privateThreadRegions.Length > 0 && dangerousHandles.Length > 0)
+        {
+            EvidenceRecord region = privateThreadRegions.OrderByDescending(item => MetaInt(item, "ThreadStartCount")).First();
+            EvidenceRecord handle = dangerousHandles.First();
+            findings.Add(F(
+                "DGS-CORR-MEMORY-HANDLE-039",
+                FindingSeverity.Critical,
+                99,
+                "CS2 private executable-thread anomaly correlated with external process access",
+                "CS2 contains a thread starting in private executable memory while another process holds injection-capable access to CS2. This is a high-confidence integrity correlation, though final attribution still requires analyst review.",
+                region,
+                $"External process: {handle.Name} (PID {handle.ProcessId})",
+                handle.Metadata.GetValueOrDefault("AccessRights") ?? "Dangerous process rights",
+                $"Thread starts: {region.Metadata.GetValueOrDefault("ThreadStartCount")}"));
+        }
+
+        var dmaDevices = evidence
+            .Where(item => item.Kind == EvidenceKind.DmaDevice && MetaBool(item, "DmaAliasMatch"))
+            .ToArray();
+
+        if (dmaDevices.Length > 0)
+        {
+            EvidenceRecord? dmaSoftwareTrace = evidence
+                .Where(item => item.Kind != EvidenceKind.DmaDevice)
+                .FirstOrDefault(item =>
+                {
+                    string text = string.Join(" ", item.Name, item.Path, item.Url, item.Detail,
+                        item.Metadata.GetValueOrDefault("Arguments"),
+                        item.Metadata.GetValueOrDefault("ServiceCommand"),
+                        item.Metadata.GetValueOrDefault("TaskCommand"),
+                        item.Metadata.GetValueOrDefault("StaticIndicators"));
+                    KnownCheatNameEntry? named = RuleMatcher.FindKnownCheatName(text, rules);
+                    bool namedDma = named is not null &&
+                        (named.Name.Contains("DMA", StringComparison.OrdinalIgnoreCase) ||
+                         named.Family.Contains("DMA", StringComparison.OrdinalIgnoreCase));
+                    return namedDma ||
+                           text.Contains("pcileech", StringComparison.OrdinalIgnoreCase) ||
+                           text.Contains("leechcore", StringComparison.OrdinalIgnoreCase) ||
+                           text.Contains("ftd3xx", StringComparison.OrdinalIgnoreCase) ||
+                           text.Contains("usb3380", StringComparison.OrdinalIgnoreCase);
+                });
+
+            if (dmaSoftwareTrace is not null)
+            {
+                EvidenceRecord device = dmaDevices[0];
+                findings.Add(F(
+                    "DGS-CORR-DMA-040",
+                    FindingSeverity.Critical,
+                    92,
+                    "DMA hardware alias correlated with local DMA software/activity trace",
+                    "A distinctive DMA-related PnP device alias was independently correlated with a local execution, file, browser, service, task, or static-analysis trace associated with DMA tooling. Hardware spoofing and legitimate lab use remain possible.",
+                    device,
+                    $"DMA alias: {device.Metadata.GetValueOrDefault("DmaAlias")}",
+                    $"Software/activity source: {dmaSoftwareTrace.Source}",
+                    $"Related artifact: {dmaSoftwareTrace.Path ?? dmaSoftwareTrace.Url ?? dmaSoftwareTrace.Name}"));
+            }
+        }
+
         var namedGroups = evidence
             .Select(x => new { Evidence = x, Match = RuleMatcher.FindKnownCheatName(
                 string.Join(" ", x.Name, x.Path, x.Url, x.Detail), rules) })
@@ -1387,6 +1679,9 @@ public static class DetectionEngine
 
     private static int MetaInt(EvidenceRecord item, string key) =>
         item.Metadata.TryGetValue(key, out string? value) && int.TryParse(value, out int parsed) ? parsed : 0;
+
+    private static long MetaLong(EvidenceRecord item, string key) =>
+        item.Metadata.TryGetValue(key, out string? value) && long.TryParse(value, out long parsed) ? parsed : 0L;
 
     private static bool MetaBool(EvidenceRecord item, string key) =>
         item.Metadata.TryGetValue(key, out string? value) && bool.TryParse(value, out bool parsed) && parsed;

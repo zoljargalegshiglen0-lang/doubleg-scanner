@@ -1,0 +1,20 @@
+DoubleG Scanner v2.2.0 replace-files patch
+
+Added:
+- DoubleGScanner/Collectors/AdvancedRuntimeCollectors.cs
+- Docs/ADVANCED_DETECTION_V2.2.0.md
+- Driver/SIGNING_REQUIRED_V2.2.0_MN.md
+
+Updated:
+- DoubleGScanner/Services/ScanCoordinator.cs
+- DoubleGScanner/Services/DetectionEngine.cs
+- DoubleGScanner/Models/Models.cs
+- DoubleGScanner/DoubleGScanner.csproj
+- Installer/DoubleGScanner.iss
+
+New collector modules:
+- CS2 process-handle access
+- CS2 overlay windows
+- Services and scheduled tasks
+- CS2 executable-memory map
+- PCIe and DMA device review

@@ -8,8 +8,25 @@ public sealed class ScanCoordinator
 {
     private readonly IReadOnlyList<IScanCollector> collectors=new IScanCollector[]
     {
-        new SystemProfileCollector(),new KernelIntegrityCollector(),new ProcessCollector(),new ModuleCollector(),new BrowserCollector(),
-        new ExecutionHistoryCollector(),new RecycleBinCollector(),new NtfsMftCollector(),new UsnJournalCollector(),new UnallocatedSpaceCollector(),new DriverPersistenceCollector(),new NetworkCollector(),new FileArtifactCollector(),new DefenderCollector()
+        new SystemProfileCollector(),
+        new KernelIntegrityCollector(),
+        new ProcessCollector(),
+        new Cs2HandleAccessCollector(),
+        new ModuleCollector(),
+        new OverlayWindowCollector(),
+        new Cs2MemoryMapCollector(),
+        new BrowserCollector(),
+        new ExecutionHistoryCollector(),
+        new RecycleBinCollector(),
+        new NtfsMftCollector(),
+        new UsnJournalCollector(),
+        new UnallocatedSpaceCollector(),
+        new DriverPersistenceCollector(),
+        new ServiceTaskCollector(),
+        new DmaDeviceCollector(),
+        new NetworkCollector(),
+        new FileArtifactCollector(),
+        new DefenderCollector()
     };
 
     public async Task<ScanResult> RunAsync(ScanMode mode,IProgress<ScanProgressUpdate>? progress,CancellationToken token)

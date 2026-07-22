@@ -3,7 +3,29 @@ namespace DoubleGScanner.Models;
 public enum ScanMode { Quick, Full, Forensic }
 public enum ScanVerdict { NotDetected, Review, Detected, Incomplete, Cancelled }
 public enum FindingSeverity { Information, Warning, High, Critical }
-public enum EvidenceKind { System, KernelSecurity, KernelDriver, CodeIntegrity, Process, Module, Browser, Execution, DeletedFile, NtfsMetadata, UsnJournal, RawDeletedFile, Network, FileArtifact, Antivirus }
+public enum EvidenceKind
+{
+    System,
+    KernelSecurity,
+    KernelDriver,
+    CodeIntegrity,
+    Process,
+    ProcessHandle,
+    Module,
+    Overlay,
+    Persistence,
+    MemoryRegion,
+    DmaDevice,
+    Browser,
+    Execution,
+    DeletedFile,
+    NtfsMetadata,
+    UsnJournal,
+    RawDeletedFile,
+    Network,
+    FileArtifact,
+    Antivirus
+}
 public enum CoverageStatus { Completed, Partial, Unavailable, Skipped, Failed }
 
 public sealed class KnownCheatEntry
@@ -38,7 +60,7 @@ public sealed class KnownVulnerableDriverEntry
 
 public sealed class RuleSet
 {
-    public string Version { get; set; } = "2.1.10";
+    public string Version { get; set; } = "2.1.10-local";
     public List<KnownCheatEntry> KnownCheats { get; set; } = new();
     public List<KnownCheatNameEntry> KnownCheatNames { get; set; } = new();
     public List<KnownVulnerableDriverEntry> KnownVulnerableDrivers { get; set; } = new();
