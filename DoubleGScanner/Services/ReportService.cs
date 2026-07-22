@@ -334,14 +334,16 @@ public sealed class ReportService
         H(section, "EVIDENCE PROFILE");
         ScanFinding[] primary = PrimaryCheatFindings(result);
         ScanFinding[] supporting = SupportingFindings(result);
-        int correlated = result.Findings.Count(x => x.Reasons.Count >= 2);
+        int confirmedCheats = primary.Count(x => !IsDefenderThreat(x));
+        int threats = primary.Count(IsDefenderThreat);
+        int namedTraces = supporting.Count(x => !string.IsNullOrWhiteSpace(x.DetectedCheatName));
         int completed = result.Coverage.Count(x => x.Status == CoverageStatus.Completed);
 
         (string Label, string Value, string Detail, string Accent)[] items =
         {
-            ("DIRECT", primary.Length.ToString("N0"), "Direct cheat artifacts", Red),
-            ("CORRELATED", correlated.ToString("N0"), "Multi-source matches", Orange),
-            ("REVIEW", supporting.Length.ToString("N0"), "Context required", Amber),
+            ("CONFIRMED CHEATS", confirmedCheats.ToString("N0"), "Red: cheat detected", Red),
+            ("OTHER THREATS", threats.ToString("N0"), "Defender / driver threat", RedDark),
+            ("CHEAT TRACES", namedTraces.ToString("N0"), "Browser/deleted - not proof", Amber),
             ("MODULES OK", completed.ToString("N0"), "Completed coverage", Green)
         };
 
@@ -402,7 +404,7 @@ public sealed class ReportService
         for (int index = 0; index < observations.Length; index++)
         {
             ScanFinding finding = observations[index];
-            string accent = CategoryAccent(FindingCategory(finding));
+            string accent = FindingAccent(finding);
             Table table = section.AddTable();
             table.AddColumn(Unit.FromCentimeter(1.25));
             table.AddColumn(Unit.FromCentimeter(16.95));
@@ -415,13 +417,11 @@ public sealed class ReportService
             number.Format.Font.Bold = true;
             number.Format.Font.Color = Colors.White;
 
-            Paragraph title = row.Cells[1].AddParagraph(IsPrimaryCheatFinding(finding)
-                ? finding.DetectedCheatName ?? finding.Title
-                : SanitizeSupportingTitle(finding));
+            Paragraph title = row.Cells[1].AddParagraph(DisplayFindingTitle(finding));
             title.Format.Font.Size = 8.4;
             title.Format.Font.Bold = true;
-            title.Format.Font.Color = C(Ink);
-            Paragraph summary = row.Cells[1].AddParagraph(Trim(finding.Summary, 230));
+            title.Format.Font.Color = C(IsPrimaryCheatFinding(finding) ? Red : Ink);
+            Paragraph summary = row.Cells[1].AddParagraph(Trim(DisplayFindingSummary(finding), 230));
             summary.Format.Font.Size = 6.8;
             summary.Format.Font.Color = C(Muted);
             summary.Format.SpaceBefore = Unit.FromPoint(2);
@@ -448,7 +448,7 @@ public sealed class ReportService
         label.Format.Font.Bold = true;
         label.Format.Font.Color = C(Red);
         Paragraph body = row.Cells[0].AddParagraph(
-            "No single neutral signal - including a second monitor, unsigned file, overlay or browser trace - is treated as proof. The final verdict is based on direct artifacts and cross-source correlation.");
+            "Only exact signatures, credible named cheat artifacts, confirmed execution/module evidence, or high-confidence runtime correlations are shown as red CHEAT DETECTED cards. Browser history, ordinary installers, generic API strings and deleted non-cheat files are not confirmed detections.");
         body.Format.Font.Size = 7.0;
         body.Format.Font.Color = C(RedDark);
         body.Format.SpaceBefore = Unit.FromPoint(4);
@@ -460,7 +460,7 @@ public sealed class ReportService
 
     private static void AddFindingsLedgerOriginal(Section section, ScanResult result)
     {
-        Paragraph intro = section.AddParagraph("Each card shows the evidence source, weight and review priority.");
+        Paragraph intro = section.AddParagraph("Red cards are confirmed cheat/threat detections. Browser-only and review evidence is clearly separated and never labelled as a confirmed cheat.");
         intro.Format.Font.Size = 8.0;
         intro.Format.Font.Color = C(Muted);
         intro.Format.SpaceAfter = Unit.FromPoint(7);
@@ -479,8 +479,8 @@ public sealed class ReportService
                      .ThenByDescending(x => x.Timestamp))
         {
             index++;
-            string category = FindingCategory(finding);
-            string accent = CategoryAccent(category);
+            string category = DisplayCategoryLabel(finding);
+            string accent = FindingAccent(finding);
             string severity = SeverityShort(finding.Severity);
 
             Table card = section.AddTable();
@@ -505,14 +505,12 @@ public sealed class ReportService
             categoryLine.Format.Font.Size = 5.7;
             categoryLine.Format.Font.Bold = true;
             categoryLine.Format.Font.Color = C(accent);
-            Paragraph title = row.Cells[1].AddParagraph(IsPrimaryCheatFinding(finding)
-                ? finding.DetectedCheatName ?? finding.Title
-                : SanitizeSupportingTitle(finding));
+            Paragraph title = row.Cells[1].AddParagraph(DisplayFindingTitle(finding));
             title.Format.Font.Size = 9.0;
             title.Format.Font.Bold = true;
-            title.Format.Font.Color = C(Ink);
+            title.Format.Font.Color = C(IsPrimaryCheatFinding(finding) || IsDefenderThreat(finding) ? Red : Ink);
             title.Format.SpaceBefore = Unit.FromPoint(2);
-            Paragraph summary = row.Cells[1].AddParagraph(Trim(finding.Summary, 300));
+            Paragraph summary = row.Cells[1].AddParagraph(Trim(DisplayFindingSummary(finding), 300));
             summary.Format.Font.Size = 6.9;
             summary.Format.Font.Color = C(Muted);
             summary.Format.SpaceBefore = Unit.FromPoint(4);
@@ -1556,48 +1554,37 @@ public sealed class ReportService
 
     private static string FindingCategory(ScanFinding finding)
     {
-        string text = string.Join(" ", new[]
-        {
-            finding.RuleId,
-            finding.Title,
-            finding.Summary,
-            finding.EvidenceSource,
-            finding.Path,
-            finding.DetectionMethod,
-            finding.CheatFamily
-        }.Where(x => !string.IsNullOrWhiteSpace(x))).ToLowerInvariant();
+        string id = finding.RuleId.ToUpperInvariant();
 
-        if (text.Contains("dma") || text.Contains("pcie") || text.Contains("fpga") || text.Contains("leechcore"))
-            return "Hardware / DMA";
-        if (text.Contains("discord"))
-            return "Discord / Online Traces";
-        if (text.Contains("overlay"))
-            return "Overlay Windows";
-        if (text.Contains("processhandle") || text.Contains("process handle") || text.Contains("vm_write") ||
-            text.Contains("create_thread") || text.Contains("inject") || text.Contains("executable memory") ||
-            text.Contains("memory region") || text.Contains("thread start"))
-            return "Runtime / Injection";
-        if (text.Contains("scheduled task") || text.Contains("service") || text.Contains("startup") ||
-            text.Contains("persistence") || text.Contains("autorun"))
-            return "Persistence";
-        if (text.Contains("kernel") || text.Contains("driver") || text.Contains("code integrity") ||
-            text.Contains("test-signing") || text.Contains("vulnerable driver"))
-            return "Kernel / Drivers";
-        if (text.Contains("defender") || text.Contains("antivirus"))
-            return "Microsoft Defender";
-        if (text.Contains("deleted") || text.Contains("recycle") || text.Contains("mft") ||
-            text.Contains("usn") || text.Contains("unallocated"))
-            return "Deleted Traces";
-        if (text.Contains("browser") || text.Contains("download history") || text.Contains("visited"))
-            return "Browser / Downloads";
-        if (text.Contains("network") || text.Contains("tcp") || text.Contains("domain") || text.Contains("remote ip"))
-            return "Network";
-        if (text.Contains("file") || text.Contains("archive") || text.Contains("hash") ||
-            text.Contains("filename") || text.Contains("static string"))
-            return "Cheat Files";
         if (IsPrimaryCheatFinding(finding))
-            return "Cheat Detections";
-        return "Other Review";
+            return IsDefenderThreat(finding) ? "Microsoft Defender" : "Cheat Detections";
+        if (id.StartsWith("DGS-NAMED-BROWSER") || id == "DGS-WEB-005" || id.StartsWith("DGS-WEB-"))
+            return "Browser / Downloads";
+        if (id.StartsWith("DGS-NAMED-DELETED") || id.StartsWith("DGS-NAMED-USN") ||
+            id.StartsWith("DGS-NAMED-MFT") || id.StartsWith("DGS-CORR-DELETED"))
+            return "Deleted Traces";
+        if (id.StartsWith("DGS-DMA") || id.StartsWith("DGS-CORR-DMA"))
+            return "Hardware / DMA";
+        if (id.StartsWith("DGS-OVERLAY"))
+            return "Overlay Windows";
+        if (id.StartsWith("DGS-HANDLE") || id.StartsWith("DGS-MEMORY") ||
+            id.StartsWith("DGS-CORR-HANDLE") || id.StartsWith("DGS-CORR-MEMORY") ||
+            id.StartsWith("DGS-EXEC") || id.StartsWith("DGS-STATIC") || id.StartsWith("DGS-CORR-020"))
+            return "Runtime / Injection";
+        if (id.StartsWith("DGS-PERSIST"))
+            return "Persistence";
+        if (id.StartsWith("DGS-KERNEL") || id.StartsWith("DGS-DRV"))
+            return "Kernel / Drivers";
+        if (id.StartsWith("DGS-DEFENDER"))
+            return "Microsoft Defender";
+        if (id.StartsWith("DGS-NAMED-COMMUNITY") ||
+            (finding.EvidenceSource?.Contains("Discord", StringComparison.OrdinalIgnoreCase) ?? false))
+            return "Discord / Online Traces";
+        if (id.StartsWith("DGS-NAMED-FILE") || id.StartsWith("DGS-NAMED-DOWNLOAD") || id.StartsWith("DGS-HASH"))
+            return "Cheat Files";
+        if (id.StartsWith("DGS-NET"))
+            return "Network";
+        return "Technical Review";
     }
 
     private static int CategoryOrder(string category) => category switch
@@ -1688,10 +1675,10 @@ public sealed class ReportService
 
     private static ScanFinding[] SupportingFindings(ScanResult result) =>
         result.Findings
-            .Where(item => !IsPrimaryCheatFinding(item))
+            .Where(item => !IsPrimaryCheatFinding(item) && IsReportableSupportingFinding(item))
             .GroupBy(
                 item => !string.IsNullOrWhiteSpace(item.DetectedCheatName)
-                    ? $"named:{NormalizeReportKey(item.DetectedCheatName)}"
+                    ? $"named:{NormalizeReportKey(item.DetectedCheatName)}:{FindingCategory(item)}"
                     : item.RuleId.StartsWith("DGS-KERNEL-", StringComparison.OrdinalIgnoreCase)
                         ? $"kernel:{item.RuleId}"
                         : $"other:{item.RuleId}|{NormalizeReportKey(item.Path ?? item.Title)}",
@@ -1706,21 +1693,106 @@ public sealed class ReportService
 
     private static bool IsPrimaryCheatFinding(ScanFinding finding)
     {
-        if (string.IsNullOrWhiteSpace(finding.DetectedCheatName))
-            return false;
-        if (finding.RuleId.Equals("DGS-DEFENDER-001", StringComparison.OrdinalIgnoreCase))
+        if (finding.RuleId.Equals("DGS-DEFENDER-001", StringComparison.OrdinalIgnoreCase) ||
+            finding.RuleId.Equals("DGS-HASH-001", StringComparison.OrdinalIgnoreCase) ||
+            finding.RuleId.Equals("DGS-HASH-LEGACY", StringComparison.OrdinalIgnoreCase) ||
+            finding.RuleId.Equals("DGS-KERNEL-HASH-001", StringComparison.OrdinalIgnoreCase))
             return true;
-        if (finding.RuleId.Equals("DGS-HASH-001", StringComparison.OrdinalIgnoreCase) ||
-            finding.RuleId.Equals("DGS-HASH-LEGACY", StringComparison.OrdinalIgnoreCase))
-            return true;
+
         if (finding.RuleId.StartsWith("DGS-NAMED-CORR", StringComparison.OrdinalIgnoreCase) ||
             finding.RuleId.StartsWith("DGS-NAMED-MODULE", StringComparison.OrdinalIgnoreCase) ||
             finding.RuleId.StartsWith("DGS-NAMED-PROCESS", StringComparison.OrdinalIgnoreCase) ||
             finding.RuleId.StartsWith("DGS-NAMED-DOWNLOAD", StringComparison.OrdinalIgnoreCase) ||
-            finding.RuleId.StartsWith("DGS-NAMED-BROWSER", StringComparison.OrdinalIgnoreCase) ||
-            finding.RuleId.StartsWith("DGS-NAMED-RAW-DELETED", StringComparison.OrdinalIgnoreCase))
+            finding.RuleId.StartsWith("DGS-NAMED-RAW-DELETED", StringComparison.OrdinalIgnoreCase) ||
+            finding.RuleId.StartsWith("DGS-NAMED-EXECUTION", StringComparison.OrdinalIgnoreCase) ||
+            (finding.RuleId.Equals("DGS-NAMED-FILE", StringComparison.OrdinalIgnoreCase) && finding.Score >= 75))
             return true;
-        return finding.Score >= 80;
+
+        return finding.RuleId is "DGS-MEMORY-033" or "DGS-CORR-HANDLE-OVERLAY-038" or
+               "DGS-CORR-MEMORY-HANDLE-039" or "DGS-CORR-DMA-040";
+    }
+
+    private static bool IsReportableSupportingFinding(ScanFinding finding)
+    {
+        if (!string.IsNullOrWhiteSpace(finding.DetectedCheatName))
+            return true;
+        if (finding.RuleId.StartsWith("DGS-WEB-", StringComparison.OrdinalIgnoreCase))
+            return finding.Score >= 18;
+        if (finding.RuleId.StartsWith("DGS-DMA-", StringComparison.OrdinalIgnoreCase) ||
+            finding.RuleId.StartsWith("DGS-MEMORY-", StringComparison.OrdinalIgnoreCase) ||
+            finding.RuleId.StartsWith("DGS-HANDLE-", StringComparison.OrdinalIgnoreCase) ||
+            finding.RuleId.StartsWith("DGS-CORR-", StringComparison.OrdinalIgnoreCase))
+            return finding.Score >= 40;
+        return finding.Score >= 50;
+    }
+
+    private static bool IsDefenderThreat(ScanFinding finding) =>
+        finding.RuleId.Equals("DGS-DEFENDER-001", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsBrowserOnlyTrace(ScanFinding finding) =>
+        finding.RuleId.StartsWith("DGS-NAMED-BROWSER", StringComparison.OrdinalIgnoreCase) ||
+        finding.RuleId.Equals("DGS-WEB-005", StringComparison.OrdinalIgnoreCase);
+
+    private static string DisplayCategoryLabel(ScanFinding finding)
+    {
+        if (IsDefenderThreat(finding))
+            return "MALWARE / DRIVER THREAT";
+        if (IsPrimaryCheatFinding(finding))
+            return "CHEAT DETECTED";
+        if (finding.RuleId.StartsWith("DGS-NAMED-BROWSER-SEARCH", StringComparison.OrdinalIgnoreCase))
+            return "CHEAT SEARCH HISTORY - NOT PROOF OF USE";
+        if (IsBrowserOnlyTrace(finding))
+            return "CHEAT WEBSITE TRACE - NOT PROOF OF USE";
+        if (!string.IsNullOrWhiteSpace(finding.DetectedCheatName))
+            return "CHEAT-RELATED SUPPORTING TRACE";
+        return FindingCategory(finding);
+    }
+
+    private static string DisplayFindingTitle(ScanFinding finding)
+    {
+        if (IsDefenderThreat(finding))
+            return $"THREAT: {finding.DetectedCheatName ?? finding.Title}";
+        if (IsPrimaryCheatFinding(finding) && !string.IsNullOrWhiteSpace(finding.DetectedCheatName))
+            return $"CHEAT: {finding.DetectedCheatName}";
+        if (IsPrimaryCheatFinding(finding))
+            return $"CHEAT / INJECTION DETECTED: {SanitizeSupportingTitle(finding)}";
+        if (finding.RuleId.StartsWith("DGS-NAMED-BROWSER-SEARCH", StringComparison.OrdinalIgnoreCase) &&
+            !string.IsNullOrWhiteSpace(finding.DetectedCheatName))
+            return $"SEARCHED: {finding.DetectedCheatName} CS2 cheat";
+        if (IsBrowserOnlyTrace(finding) && !string.IsNullOrWhiteSpace(finding.DetectedCheatName))
+            return $"{finding.DetectedCheatName} - known CS2 cheat website/name";
+        if (!string.IsNullOrWhiteSpace(finding.DetectedCheatName))
+            return $"{finding.DetectedCheatName} - cheat-related trace";
+        return SanitizeSupportingTitle(finding);
+    }
+
+    private static string DisplayFindingSummary(ScanFinding finding)
+    {
+        if (IsDefenderThreat(finding))
+            return "Microsoft Defender detected a malware or driver-loader threat. This is a real antivirus detection, but the report does not automatically claim a specific CS2 cheat unless a cheat name is independently identified.";
+        if (IsPrimaryCheatFinding(finding) && !string.IsNullOrWhiteSpace(finding.DetectedCheatName))
+            return $"Confirmed evidence of the {finding.DetectedCheatName} CS2 cheat was found. Method: {finding.DetectionMethod ?? "high-confidence correlation"}.";
+        if (IsPrimaryCheatFinding(finding))
+            return $"High-confidence cheat/injection behavior was detected, but the exact cheat product name could not be identified. {finding.Summary}";
+        if (finding.RuleId.StartsWith("DGS-NAMED-BROWSER-SEARCH", StringComparison.OrdinalIgnoreCase) &&
+            !string.IsNullOrWhiteSpace(finding.DetectedCheatName))
+            return $"Google/Bing/DuckDuckGo history contains an explicit search for the known CS2 cheat {finding.DetectedCheatName}. It is shown for review but is not counted as confirmed use.";
+        if (IsBrowserOnlyTrace(finding) && !string.IsNullOrWhiteSpace(finding.DetectedCheatName))
+            return $"{finding.DetectedCheatName} is a known CS2 cheat name/site. Only browser data was found here; this does not prove the cheat was installed or executed.";
+        if (!string.IsNullOrWhiteSpace(finding.DetectedCheatName))
+            return $"The evidence references the known CS2 cheat {finding.DetectedCheatName}, but this item alone is not enough to prove execution.";
+        return finding.Summary;
+    }
+
+    private static string FindingAccent(ScanFinding finding)
+    {
+        if (IsPrimaryCheatFinding(finding) || IsDefenderThreat(finding))
+            return Red;
+        if (finding.RuleId.StartsWith("DGS-NAMED-BROWSER-SEARCH", StringComparison.OrdinalIgnoreCase))
+            return "#EA580C";
+        if (IsBrowserOnlyTrace(finding))
+            return "#2563EB";
+        return CategoryAccent(FindingCategory(finding));
     }
 
     private static string NormalizeReportKey(string? value)

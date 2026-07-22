@@ -11,10 +11,10 @@
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <AssemblyName>DoubleGScanner</AssemblyName>
     <RootNamespace>DoubleGScanner</RootNamespace>
-    <Version>2.2.3</Version>
-    <AssemblyVersion>2.2.3.0</AssemblyVersion>
-    <FileVersion>2.2.3.0</FileVersion>
-    <InformationalVersion>2.2.3</InformationalVersion>
+    <Version>2.2.6</Version>
+    <AssemblyVersion>2.2.6.0</AssemblyVersion>
+    <FileVersion>2.2.6.0</FileVersion>
+    <InformationalVersion>2.2.6</InformationalVersion>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\DoubleGScanner.ico</ApplicationIcon>
     <PublishSingleFile>true</PublishSingleFile>
@@ -27,10 +27,10 @@
     <PackageReference Include="PDFsharp-MigraDoc-WPF" Version="6.2.4" />
   </ItemGroup>
   <ItemGroup>
-    <None Update="Assets\DoubleGLogo.png">
+    <Resource Include="Assets\DoubleGLogo.png">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
-    </None>
+    </Resource>
   </ItemGroup>
   <ItemGroup>
     <None Update="Data\rules.json">

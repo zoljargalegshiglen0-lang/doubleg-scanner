@@ -1,17 +1,6 @@
-Docs/ADVANCED_DETECTION_V2.2.0.md
-Docs/REPORT_DESIGN_V2.2.2_MN.md
-DoubleGScanner/Collectors/AdvancedRuntimeCollectors.cs
-DoubleGScanner/DoubleGScanner.csproj
-DoubleGScanner/Models/Models.cs
-DoubleGScanner/Services/DetectionEngine.cs
-DoubleGScanner/Services/ReportService.cs
-DoubleGScanner/Services/ScanCoordinator.cs
-Driver/SIGNING_REQUIRED_V2.2.0_MN.md
-GITHUB_UPDATE_V2.2.0_MN.md
-GITHUB_UPDATE_V2.2.2_MN.md
-Installer/DoubleGScanner.iss
-PATCH_MANIFEST.txt
-
-V2.2.3 BUILD FIX
-- Fixed ReportService.cs Image type resolution at both logo insertion sites.
-- Bumped project and installer versions to 2.2.3.
+v2.2.6 logo fix package
+- DoubleGScanner/Assets/DoubleGLogo.png
+- DoubleGScanner/DoubleGScanner.csproj
+- Installer/DoubleGScanner.iss
+- FIX_LOGO_V2.2.6_MN.md
+- existing v2.2.5 detection/report files preserved
