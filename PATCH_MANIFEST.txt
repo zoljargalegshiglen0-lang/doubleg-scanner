@@ -11,3 +11,7 @@ GITHUB_UPDATE_V2.2.0_MN.md
 GITHUB_UPDATE_V2.2.2_MN.md
 Installer/DoubleGScanner.iss
 PATCH_MANIFEST.txt
+
+V2.2.3 BUILD FIX
+- Fixed ReportService.cs Image type resolution at both logo insertion sites.
+- Bumped project and installer versions to 2.2.3.

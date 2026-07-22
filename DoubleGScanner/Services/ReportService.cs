@@ -182,7 +182,7 @@ public sealed class ReportService
         {
             Paragraph logo = row.Cells[1].AddParagraph();
             logo.Format.Alignment = ParagraphAlignment.Center;
-            Image image = logo.AddImage(logoPath);
+            var image = logo.AddImage(logoPath);
             image.LockAspectRatio = true;
             image.Height = Unit.FromCentimeter(0.88);
         }
@@ -782,7 +782,7 @@ public sealed class ReportService
         {
             Paragraph logo = row.Cells[0].AddParagraph();
             logo.Format.Alignment = ParagraphAlignment.Center;
-            Image image = logo.AddImage(logoPath);
+            var image = logo.AddImage(logoPath);
             image.LockAspectRatio = true;
             image.Height = Unit.FromCentimeter(1.2);
         }
