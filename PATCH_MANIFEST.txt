@@ -1,6 +1,6 @@
-v2.2.6 logo fix package
-- DoubleGScanner/Assets/DoubleGLogo.png
+DoubleG Scanner v2.2.7 patch
+- DoubleGScanner/Services/DetectionEngine.cs
 - DoubleGScanner/DoubleGScanner.csproj
 - Installer/DoubleGScanner.iss
-- FIX_LOGO_V2.2.6_MN.md
-- existing v2.2.5 detection/report files preserved
+- DoubleGScanner/Assets/DoubleGLogo.png
+- existing v2.2.5 browser-search and v2.2.6 logo fixes retained

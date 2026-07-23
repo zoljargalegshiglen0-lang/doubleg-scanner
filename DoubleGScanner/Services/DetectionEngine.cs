@@ -316,14 +316,23 @@ public static class DetectionEngine
             return;
         }
 
-        if (item.Kind == EvidenceKind.RawDeletedFile && (directNamedArtifact || strongStatic))
+        if (item.Kind == EvidenceKind.RawDeletedFile)
         {
+            // Unallocated clusters do not preserve reliable file identity, execution state,
+            // original path, or complete binary contents. A product-name string in free
+            // space must never become a confirmed cheat detection by itself.
+            if (!HasRawExecutableStructure(item) || !strongStatic || IsAmbiguousKnownCheatName(named))
+                return;
+
             int rawStaticScore = MetaInt(item, "StaticRiskScore");
-            findings.Add(Named("DGS-NAMED-RAW-DELETED", FindingSeverity.Critical, rawStaticScore >= 70 ? 94 : 86,
-                $"CHEAT DETECTED - {named.Name}",
-                $"A deleted executable fragment linked to the known CS2 cheat {named.Name} was recovered from unallocated NTFS space.",
-                item, named, "Named cheat in deleted executable fragment", "CONFIRMED CHEAT",
-                "Content analyzed in memory; file was not restored"));
+            findings.Add(Named("DGS-NAMED-RAW-DELETED-REVIEW", FindingSeverity.Warning,
+                rawStaticScore >= 85 ? 36 : 28,
+                $"HISTORICAL CHEAT-LIKE FRAGMENT - {named.Name}",
+                $"A deleted PE-like fragment in unallocated NTFS space contained the name {named.Name} together with distinctive cheat-like indicators. This is historical review evidence only and does not prove installation or execution.",
+                item, named, "Unallocated-space fragment requiring review", "NOT CONFIRMED",
+                "Original file identity is unavailable",
+                "No execution proof",
+                "Content was analyzed in memory; the file was not restored"));
             return;
         }
 
@@ -708,8 +717,9 @@ public static class DetectionEngine
             bool dangerous = MetaBool(item, "DangerousWriteOrInjectionAccess");
             bool vmRead = MetaBool(item, "HasVmRead");
             bool unsignedOrUnknown = item.IsSignatureValid != true;
+            bool knownWindowsSystemProcess = IsKnownWindowsSystemProcess(item);
 
-            if (dangerous && userWritable && unsignedOrUnknown && !trusted)
+            if (dangerous && userWritable && unsignedOrUnknown && !trusted && !knownWindowsSystemProcess)
             {
                 findings.Add(F(
                     "DGS-HANDLE-026",
@@ -722,7 +732,7 @@ public static class DetectionEngine
                     "User-writable executable",
                     "Publisher/signature not trusted"));
             }
-            else if (dangerous && !trusted)
+            else if (dangerous && !trusted && !knownWindowsSystemProcess)
             {
                 findings.Add(F(
                     "DGS-HANDLE-027",
@@ -735,7 +745,7 @@ public static class DetectionEngine
                     "Live handle relationship",
                     "Manual verification required"));
             }
-            else if (vmRead && unsignedOrUnknown && !trusted)
+            else if (vmRead && unsignedOrUnknown && !trusted && !knownWindowsSystemProcess)
             {
                 findings.Add(F(
                     "DGS-HANDLE-028",
@@ -934,31 +944,21 @@ public static class DetectionEngine
         {
             int rawStaticScore = MetaInt(item, "StaticRiskScore");
 
-            if (rawStaticScore >= 70)
+            // Free-space fragments are volatile historical residue. Keep only fragments
+            // that still look like executable content AND contain multiple distinctive
+            // cheat/injection indicators. They remain review-only and never trigger DETECTED.
+            if (rawStaticScore >= 80 && HasRawExecutableStructure(item) && strongStaticCheatEvidence)
             {
                 findings.Add(F(
-                    "DGS-RAW-022",
-                    FindingSeverity.High,
-                    72,
-                    "Strong cheat-like deleted binary fragment",
-                    "A PE fragment found in unallocated clusters contained strong CS2 and process/memory manipulation indicators.",
+                    "DGS-RAW-022-REVIEW",
+                    FindingSeverity.Warning,
+                    34,
+                    "Deleted executable fragment requires review",
+                    "A PE-like fragment in unallocated NTFS space contained multiple distinctive cheat/injection indicators. The original file, path, hash, and execution state are unavailable, so this is not a confirmed cheat detection.",
                     item,
                     $"Static score: {rawStaticScore}/100",
                     item.Metadata.GetValueOrDefault("StaticIndicators") ?? "Static indicators",
-                    "Content was not restored to disk"));
-            }
-            else if (rawStaticScore >= 45 || high)
-            {
-                findings.Add(F(
-                    "DGS-RAW-023",
-                    FindingSeverity.Warning,
-                    42,
-                    "Suspicious deleted executable/archive fragment",
-                    "A signature located in free NTFS clusters contained suspicious static strings or high-risk terms.",
-                    item,
-                    $"Signature: {item.Metadata.GetValueOrDefault("SignatureType")}",
-                    $"Disk offset: {item.Metadata.GetValueOrDefault("DiskOffsetHex")}",
-                    "Manual verification required"));
+                    "HISTORICAL TRACE - NOT PROOF OF USE"));
             }
         }
 
@@ -1132,12 +1132,11 @@ public static class DetectionEngine
             EvidenceKind[] kinds = group.Select(x => x.Evidence.Kind).Distinct().ToArray();
             bool browser = kinds.Contains(EvidenceKind.Browser);
             bool local = kinds.Contains(EvidenceKind.FileArtifact) || kinds.Contains(EvidenceKind.DeletedFile) ||
-                         kinds.Contains(EvidenceKind.NtfsMetadata) || kinds.Contains(EvidenceKind.UsnJournal) ||
-                         kinds.Contains(EvidenceKind.RawDeletedFile);
+                         kinds.Contains(EvidenceKind.NtfsMetadata) || kinds.Contains(EvidenceKind.UsnJournal);
             bool execution = kinds.Contains(EvidenceKind.Execution) || kinds.Contains(EvidenceKind.Process) ||
                              kinds.Contains(EvidenceKind.Module);
             bool strongLocal = group.Any(x =>
-                                   (x.Evidence.Kind is EvidenceKind.FileArtifact or EvidenceKind.RawDeletedFile) &&
+                                   x.Evidence.Kind == EvidenceKind.FileArtifact &&
                                    (HasStrongStaticCheatEvidence(x.Evidence) ||
                                     ArtifactDirectlyNamesCheat(x.Evidence, x.Match!))) ||
                                group.Any(x => x.Evidence.Kind is EvidenceKind.Execution or EvidenceKind.Process or EvidenceKind.Module);
@@ -1164,7 +1163,7 @@ public static class DetectionEngine
         {
             EvidenceKind[] kinds = group.Select(x => x.Kind).Distinct().ToArray();
             if (kinds.Contains(EvidenceKind.Browser) && kinds.Contains(EvidenceKind.Execution) &&
-                (kinds.Contains(EvidenceKind.DeletedFile) || kinds.Contains(EvidenceKind.FileArtifact) || kinds.Contains(EvidenceKind.UsnJournal) || kinds.Contains(EvidenceKind.RawDeletedFile)))
+                (kinds.Contains(EvidenceKind.DeletedFile) || kinds.Contains(EvidenceKind.FileArtifact) || kinds.Contains(EvidenceKind.UsnJournal)))
             {
                 EvidenceRecord primary = group.OrderByDescending(x => x.Timestamp).First();
                 findings.Add(F("DGS-CORR-013", FindingSeverity.Critical, 82,
@@ -1397,6 +1396,18 @@ public static class DetectionEngine
         bool technicalMetadata = NamedAppearsInTechnicalMetadata(item, match);
         bool strongStatic = HasStrongStaticCheatEvidence(item);
 
+        // Raw unallocated-space samples commonly contain unrelated words, cache text,
+        // scanner signature lists, and partial overwritten data. Require a PE-like
+        // structure plus strong technical indicators, and suppress ambiguous brand words.
+        if (item.Kind == EvidenceKind.RawDeletedFile)
+        {
+            return HasRawExecutableStructure(item) &&
+                   strongStatic &&
+                   !IsAmbiguousKnownCheatName(match)
+                ? match
+                : null;
+        }
+
         if (IsDeveloperPackageCollision(item) && !directArtifact && !strongStatic)
             return null;
 
@@ -1605,6 +1616,58 @@ public static class DetectionEngine
         return !ambiguous && normalizedName.Length >= 6 && NormalizeLoose(decoded).Contains(normalizedName);
     }
 
+    private static bool HasRawExecutableStructure(EvidenceRecord item)
+    {
+        string signature = string.Join(" ",
+            item.Metadata.GetValueOrDefault("SignatureType"),
+            item.Metadata.GetValueOrDefault("FileSignature"),
+            item.Metadata.GetValueOrDefault("Magic"),
+            item.Metadata.GetValueOrDefault("PeHeader"),
+            item.Metadata.GetValueOrDefault("StaticIndicators"),
+            item.Detail).ToLowerInvariant();
+
+        return MetaBool(item, "HasMzHeader") ||
+               MetaBool(item, "HasPeHeader") ||
+               MetaBool(item, "ValidPeStructure") ||
+               signature.Contains("mz header", StringComparison.OrdinalIgnoreCase) ||
+               signature.Contains("pe header", StringComparison.OrdinalIgnoreCase) ||
+               signature.Contains("portable executable", StringComparison.OrdinalIgnoreCase) ||
+               signature.Contains("pe32", StringComparison.OrdinalIgnoreCase) ||
+               signature.Contains("pe64", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsAmbiguousKnownCheatName(KnownCheatNameEntry named)
+    {
+        string[] ambiguousNames =
+        {
+            "midnight", "osiris", "sapphire", "legend", "eclipse", "aurora",
+            "fantasy", "precision", "predator", "plague", "airflow", "interium",
+            "phantom", "nexus", "monolith", "stern", "oxide"
+        };
+
+        string normalizedName = NormalizeLoose(named.Name);
+        return normalizedName.Length < 6 ||
+               ambiguousNames.Any(value => NormalizeLoose(value) == normalizedName);
+    }
+
+    private static bool IsKnownWindowsSystemProcess(EvidenceRecord item)
+    {
+        string path = (item.Path ?? "").Replace('/', '\\').ToLowerInvariant();
+        string name = Path.GetFileName(path.Length > 0 ? path : item.Name ?? "").ToLowerInvariant();
+
+        bool systemPath = path.StartsWith(@"c:\windows\system32\", StringComparison.OrdinalIgnoreCase) ||
+                          path.StartsWith(@"c:\windows\syswow64\", StringComparison.OrdinalIgnoreCase) ||
+                          path.StartsWith(@"c:\windows\winsxs\", StringComparison.OrdinalIgnoreCase);
+
+        string[] standardNames =
+        {
+            "svchost.exe", "services.exe", "lsass.exe", "wininit.exe", "csrss.exe",
+            "dwm.exe", "smss.exe", "taskhostw.exe", "wmiprvse.exe", "spoolsv.exe"
+        };
+
+        return systemPath && standardNames.Contains(name, StringComparer.OrdinalIgnoreCase);
+    }
+
     private static bool IsConfirmedDetectionFinding(ScanFinding finding)
     {
         if (finding.RuleId.Equals("DGS-DEFENDER-001", StringComparison.OrdinalIgnoreCase) ||
@@ -1617,7 +1680,6 @@ public static class DetectionEngine
             finding.RuleId.StartsWith("DGS-NAMED-MODULE", StringComparison.OrdinalIgnoreCase) ||
             finding.RuleId.StartsWith("DGS-NAMED-PROCESS", StringComparison.OrdinalIgnoreCase) ||
             finding.RuleId.StartsWith("DGS-NAMED-DOWNLOAD", StringComparison.OrdinalIgnoreCase) ||
-            finding.RuleId.StartsWith("DGS-NAMED-RAW-DELETED", StringComparison.OrdinalIgnoreCase) ||
             finding.RuleId.StartsWith("DGS-NAMED-EXECUTION", StringComparison.OrdinalIgnoreCase) ||
             (finding.RuleId.Equals("DGS-NAMED-FILE", StringComparison.OrdinalIgnoreCase) && finding.Score >= 75))
             return true;
